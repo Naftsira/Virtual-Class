@@ -1,4 +1,4 @@
-# Lectra --- Virtual Class Platform
+# Lectra - Virtual Class Platform
 
 ## Overview
 
@@ -113,7 +113,3 @@ Informatics Engineering
 Email: theo.sirait28@gmail.com\
 Website: https://naftalists.space
 
-## Philosophy
-
-"Enlightenment is man's emergence from his self-imposed immaturity."\
---- Immanuel Kant
