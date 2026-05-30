@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/store/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, loading, logout } = useAuth();
@@ -54,16 +55,21 @@ export default function DashboardPage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {['Courses', 'Sessions', 'Assignments'].map((item) => (
-            <div
-              key={item}
+          {[
+            { label: 'Courses', href: '/courses' },
+            { label: 'Sessions', href: '/courses' },
+            { label: 'Assignments', href: '/courses' },
+          ].map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
               className="bg-white rounded-2xl border p-6 hover:shadow-md transition cursor-pointer"
             >
               <h2 className="font-semibold text-sm text-gray-400 uppercase tracking-wide mb-2">
-                {item}
+                {item.label}
               </h2>
-              <p className="text-3xl font-bold">0</p>
-            </div>
+              <p className="text-3xl font-bold">→</p>
+            </Link>
           ))}
         </div>
       </main>

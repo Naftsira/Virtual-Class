@@ -1,0 +1,173 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useAuth } from '@/lib/store/auth';
+import api from '@/lib/axios';
+import Link from 'next/link';
+
+interface Session {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'waiting' | 'active' | 'closed';
+  scheduled_at: string;
+}
+
+interface Course {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+}
+
+export default function CourseDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user, loading: authLoading } = useAuth();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', scheduled_at: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+
+    Promise.all([
+      api.get(`/courses/${id}`),
+      api.get(`/courses/${id}/sessions`),
+    ]).then(([courseRes, sessionsRes]) => {
+      setCourse(courseRes.data);
+      setSessions(sessionsRes.data);
+    }).finally(() => setLoading(false));
+  }, [id, user, authLoading]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await api.post(`/courses/${id}/sessions`, form);
+      setSessions((prev) => [...prev, res.data]);
+      setForm({ title: '', description: '', scheduled_at: '' });
+      setShowForm(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const statusColor = (status: string) => {
+    if (status === 'active') return 'bg-green-100 text-green-700';
+    if (status === 'closed') return 'bg-gray-100 text-gray-500';
+    return 'bg-yellow-100 text-yellow-700';
+  };
+
+  if (authLoading || loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <p className="text-gray-400 text-sm">Loading...</p>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b px-6 py-4 flex items-center gap-3">
+        <Link href="/dashboard" className="font-bold tracking-tight">LECTRA</Link>
+        <span className="text-gray-300">/</span>
+        <Link href="/courses" className="text-sm text-gray-500 hover:text-black">Courses</Link>
+        <span className="text-gray-300">/</span>
+        <span className="text-sm font-medium">{course?.name}</span>
+      </nav>
+
+      <main className="max-w-4xl mx-auto px-6 py-10">
+        <div className="mb-8">
+          <span className="text-xs text-gray-400 font-mono">{course?.code}</span>
+          <h1 className="text-2xl font-bold">{course?.name}</h1>
+          {course?.description && (
+            <p className="text-gray-500 text-sm mt-1">{course.description}</p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">Sessions</h2>
+          {user?.role === 'lecturer' && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+            >
+              {showForm ? 'Cancel' : '+ New Session'}
+            </button>
+          )}
+        </div>
+
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border p-6 mb-6 space-y-4">
+            <h3 className="font-semibold">Create New Session</h3>
+            <div>
+              <label className="block text-sm font-medium mb-1">Title</label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                placeholder="Introduction to WebSockets"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Scheduled At</label>
+              <input
+                type="datetime-local"
+                value={form.scheduled_at}
+                onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition"
+            >
+              {submitting ? 'Creating...' : 'Create Session'}
+            </button>
+          </form>
+        )}
+
+        {sessions.length === 0 ? (
+          <p className="text-gray-400 text-sm">No sessions yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {sessions.map((session) => (
+              <Link
+                key={session.id}
+                href={`/session/${session.id}`}
+                className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition block"
+              >
+                <div>
+                  <h3 className="font-semibold">{session.title}</h3>
+                  {session.description && (
+                    <p className="text-sm text-gray-500 mt-1">{session.description}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(session.scheduled_at).toLocaleString()}
+                  </p>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
+                  {session.status}
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

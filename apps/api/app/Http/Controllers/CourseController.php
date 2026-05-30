@@ -42,7 +42,7 @@ class CourseController extends Controller
 
     public function show(Request $request, string $id)
     {
-        $course = Course::with('enrollments.student')->findOrFail($id);
+        $course = Course::findOrFail($id);
         return response()->json($course);
     }
 
