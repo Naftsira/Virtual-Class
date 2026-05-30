@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
 import Link from 'next/link';
@@ -30,6 +30,7 @@ export default function CourseDetailPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', scheduled_at: '' });
   const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -40,8 +41,12 @@ export default function CourseDetailPage() {
     ]).then(([courseRes, sessionsRes]) => {
       setCourse(courseRes.data);
       setSessions(sessionsRes.data);
+    }).catch((err) => {
+      if (err.response?.status === 404) {
+        router.push('/courses');
+      }
     }).finally(() => setLoading(false));
-  }, [id, user, authLoading]);
+  }, [id, user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +58,16 @@ export default function CourseDetailPage() {
       setShowForm(false);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string, courseId: string) => {
+    if (!confirm('Delete this session?')) return;
+    try {
+      await api.delete(`/courses/${courseId}/sessions/${sessionId}`);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch {
+      alert('Failed to delete session.');
     }
   };
 
@@ -68,6 +83,8 @@ export default function CourseDetailPage() {
     </div>
   );
 
+  if (!course) return null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center gap-3">
@@ -75,14 +92,14 @@ export default function CourseDetailPage() {
         <span className="text-gray-300">/</span>
         <Link href="/courses" className="text-sm text-gray-500 hover:text-black">Courses</Link>
         <span className="text-gray-300">/</span>
-        <span className="text-sm font-medium">{course?.name}</span>
+        <span className="text-sm font-medium">{course.name}</span>
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
         <div className="mb-8">
-          <span className="text-xs text-gray-400 font-mono">{course?.code}</span>
-          <h1 className="text-2xl font-bold">{course?.name}</h1>
-          {course?.description && (
+          <span className="text-xs text-gray-400 font-mono">{course.code}</span>
+          <h1 className="text-2xl font-bold">{course.name}</h1>
+          {course.description && (
             <p className="text-gray-500 text-sm mt-1">{course.description}</p>
           )}
         </div>
@@ -146,12 +163,8 @@ export default function CourseDetailPage() {
         ) : (
           <div className="space-y-3">
             {sessions.map((session) => (
-              <Link
-                key={session.id}
-                href={`/session/${session.id}`}
-                className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition block"
-              >
-                <div>
+              <div key={session.id} className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition">
+                <Link href={`/session/${session.id}`} className="flex-1">
                   <h3 className="font-semibold">{session.title}</h3>
                   {session.description && (
                     <p className="text-sm text-gray-500 mt-1">{session.description}</p>
@@ -159,11 +172,21 @@ export default function CourseDetailPage() {
                   <p className="text-xs text-gray-400 mt-2">
                     {new Date(session.scheduled_at).toLocaleString()}
                   </p>
+                </Link>
+                <div className="flex items-center gap-3 ml-4">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
+                    {session.status}
+                  </span>
+                  {user?.role === 'lecturer' && (
+                    <button
+                      onClick={() => handleDeleteSession(session.id, id)}
+                      className="text-red-400 hover:text-red-600 text-xs transition"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
-                  {session.status}
-                </span>
-              </Link>
+              </div>
             ))}
           </div>
         )}

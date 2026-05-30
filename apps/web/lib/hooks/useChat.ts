@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { connectSocket, disconnectSocket } from '../socket';
+import { connectSocket } from '../socket';
 
 export interface Message {
   id: string;
@@ -12,6 +12,15 @@ export interface Message {
   createdAt: string;
 }
 
+function normalizeMessage(m: any): Message {
+  return {
+    id: m._id || m.id,
+    user: m.user,
+    content: m.content,
+    createdAt: m.createdAt,
+  };
+}
+
 export function useChat(sessionId: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connected, setConnected] = useState(false);
@@ -20,20 +29,42 @@ export function useChat(sessionId: string) {
   useEffect(() => {
     const socket = socketRef.current;
 
-    socket.emit('chat:join', sessionId);
-    setConnected(socket.connected);
+    const onConnect = () => {
+      setConnected(true);
+      socket.emit('chat:join', sessionId);
+    };
 
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('chat:message', (message: Message) => {
-      setMessages((prev) => [...prev, message]);
-    });
+    const onDisconnect = () => setConnected(false);
+
+    const onHistory = (history: any[]) => {
+      setMessages(history.map(normalizeMessage));
+    };
+
+    const onMessage = (message: any) => {
+      setMessages((prev) => {
+        const normalized = normalizeMessage(message);
+        // Hindari duplicate
+        if (prev.find((m) => m.id === normalized.id)) return prev;
+        return [...prev, normalized];
+      });
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('chat:history', onHistory);
+    socket.on('chat:message', onMessage);
+
+    if (socket.connected) {
+      setConnected(true);
+      socket.emit('chat:join', sessionId);
+    }
 
     return () => {
       socket.emit('chat:leave', sessionId);
-      socket.off('chat:message');
-      socket.off('connect');
-      socket.off('disconnect');
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('chat:history', onHistory);
+      socket.off('chat:message', onMessage);
     };
   }, [sessionId]);
 
