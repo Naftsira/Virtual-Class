@@ -6,6 +6,7 @@ import { useChat } from '@/lib/hooks/useChat';
 import { useAuth } from '@/lib/store/auth';
 import { getSocket } from '@/lib/socket';
 import api from '@/lib/axios';
+import Link from 'next/link';
 
 interface Session {
   id: string;
@@ -24,7 +25,9 @@ export default function SessionPage() {
   const router = useRouter();
 
   useEffect(() => {
-    api.get(`/sessions/${id}`).then((res) => setSession(res.data));
+    api.get(`/sessions/${id}`).then((res) => setSession(res.data)).catch(() => {
+      router.push('/courses');
+    });
 
     const socket = getSocket();
     socket.on('session:ended', () => {
@@ -47,11 +50,9 @@ export default function SessionPage() {
     if (!confirm('End this session? All messages will be deleted.')) return;
     setEnding(true);
     try {
-      // Hapus dari Supabase via Laravel
       await api.post(`/courses/${session?.course_id}/sessions/${id}/end`);
-      // Hapus dari MongoDB dan notify semua user via socket
       getSocket().emit('session:end', id);
-    } catch (err) {
+    } catch {
       alert('Failed to end session.');
     } finally {
       setEnding(false);
@@ -61,8 +62,22 @@ export default function SessionPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <span className="font-bold tracking-tight">LECTRA</span>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <span className="font-bold tracking-tight">LECTRA</span>
+          {session && (
+            <>
+              <span className="text-gray-300">/</span>
+              <span className="text-sm text-gray-500">{session.title}</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/session/${id}/whiteboard`}
+            className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+          >
+            Whiteboard
+          </Link>
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-xs text-gray-500">{connected ? 'Connected' : 'Disconnected'}</span>

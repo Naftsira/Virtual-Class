@@ -3,10 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
+use App\Models\ClassSession;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class CourseController extends Controller
 {
+    protected function notifyCourseEnd(string $courseId): void
+    {
+        $sessionIds = ClassSession::where('course_id', $courseId)->pluck('id')->toArray();
+        if (!empty($sessionIds)) {
+            Http::post('http://localhost:3001/internal/course/' . $courseId . '/end', [
+                'sessionIds' => $sessionIds,
+            ]);
+        }
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -62,6 +74,7 @@ class CourseController extends Controller
     public function destroy(Request $request, string $id)
     {
         $course = Course::where('lecturer_id', $request->user()->id)->findOrFail($id);
+        $this->notifyCourseEnd($id);
         $course->delete();
         return response()->json(['message' => 'Course deleted']);
     }

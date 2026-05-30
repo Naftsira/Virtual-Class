@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "axios": "^1.16.1",
+    "fabric": "^7.4.0",
     "js-cookie": "^3.0.7",
     "js-cookies": "^1.0.4",
     "next": "16.2.6",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/fabric": "^5.3.11",
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
     "@types/react": "^19",

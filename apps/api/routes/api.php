@@ -18,4 +18,9 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('courses', CourseController::class);
     Route::apiResource('courses.sessions', SessionController::class);
+    Route::post('courses/{course}/sessions/{session}/end', [SessionController::class, 'end']);
+});
+
+Route::middleware('auth:sanctum')->get('sessions/{id}', function($id) {
+    return response()->json(\App\Models\ClassSession::findOrFail($id));
 });
