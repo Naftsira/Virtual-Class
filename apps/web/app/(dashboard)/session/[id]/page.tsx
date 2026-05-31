@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useChat } from '@/lib/hooks/useChat';
+import { useWhiteboard } from '@/lib/hooks/useWhiteboard';
 import { useAuth } from '@/lib/store/auth';
 import { getSocket } from '@/lib/socket';
 import api from '@/lib/axios';
 import Link from 'next/link';
+
+const COLORS = ['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6'];
 
 interface Session {
   id: string;
@@ -22,6 +25,15 @@ export default function SessionPage() {
   const [input, setInput] = useState('');
   const [ending, setEnding] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [chatClosing, setChatClosing] = useState(false);
+  const [activeColor, setActiveColor] = useState('#000000');
+  const [erasing, setErasing] = useState(false);
+  const [brushSize, setBrushSize] = useState(3);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { clearCanvas, setColor, setWidth, toggleEraser } = useWhiteboard(id, canvasRef, containerRef);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -35,10 +47,12 @@ export default function SessionPage() {
       router.push('/courses');
     });
 
-    return () => {
-      socket.off('session:ended');
-    };
+    return () => { socket.off('session:ended'); };
   }, [id, router]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -59,44 +73,50 @@ export default function SessionPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="font-bold tracking-tight">LECTRA</span>
-          {session && (
-            <>
-              <span className="text-gray-300">/</span>
-              <span className="text-sm text-gray-500">{session.title}</span>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/session/${id}/whiteboard`}
-            className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
-          >
-            Whiteboard
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-500">{connected ? 'Connected' : 'Disconnected'}</span>
-          </div>
-          {user?.role === 'lecturer' && (
-            <button
-              onClick={handleEndSession}
-              disabled={ending || !session}
-              className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-600 disabled:opacity-50 transition"
-            >
-              {ending ? 'Ending...' : 'End Session'}
-            </button>
-          )}
-        </div>
-      </div>
+  const handleColorChange = (color: string) => {
+    setActiveColor(color);
+    setErasing(false);
+    toggleEraser(false, color);
+    setColor(color);
+  };
 
-      <div className="flex-1 max-w-3xl w-full mx-auto px-6 py-6 space-y-3 overflow-y-auto">
+  const handleEraserToggle = () => {
+    const next = !erasing;
+    setErasing(next);
+    toggleEraser(next, activeColor);
+  };
+
+  const handleSizeChange = (size: number) => {
+    setBrushSize(size);
+    setWidth(size);
+  };
+  const handleCloseChat = () => {
+    setChatClosing(true);
+    setTimeout(() => {
+      setChatOpen(false);
+      setChatClosing(false);
+    }, 280);
+  };
+
+  const handleOpenChat = () => {
+    setChatOpen(true);
+    setChatClosing(false);
+  };
+
+  const ChatPanel = (
+    <div className="flex flex-col h-full">
+      <div className="px-4 py-3 border-b shrink-0 flex items-center justify-between">
+        <h2 className="font-semibold text-sm">Chat</h2>
+        <button
+          onClick={() => handleCloseChat()}
+          className="text-gray-400 hover:text-black text-lg leading-none"
+        >
+          ×
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
-          <p className="text-center text-gray-400 text-sm">No messages yet</p>
+          <p className="text-center text-gray-400 text-xs mt-4">No messages yet</p>
         )}
         {messages.map((msg) => (
           <div
@@ -105,33 +125,158 @@ export default function SessionPage() {
           >
             <span className="text-xs text-gray-400 mb-1">{msg.user.name}</span>
             <div
-              className={`px-4 py-2 rounded-2xl text-sm max-w-xs ${
+              className={`px-3 py-2 rounded-2xl text-xs max-w-[200px] break-words ${
                 msg.user.id === user?.id
                   ? 'bg-black text-white'
-                  : 'bg-white border text-gray-800'
+                  : 'bg-gray-100 text-gray-800'
               }`}
             >
               {msg.content}
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
-
-      <div className="bg-white border-t px-6 py-4 flex gap-3 max-w-3xl w-full mx-auto">
+      <div className="px-4 py-3 border-t flex gap-2 shrink-0">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+          className="flex-1 border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black min-w-0"
         />
         <button
           onClick={handleSend}
-          className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+          className="bg-black text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-800 transition shrink-0"
         >
           Send
         </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="h-screen bg-gray-100 flex flex-col overflow-hidden">
+      {/* Navbar */}
+      <div className="bg-white border-b px-4 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link href="/courses" className="font-bold tracking-tight shrink-0">LECTRA</Link>
+          {session && (
+            <>
+              <span className="text-gray-300">/</span>
+              <span className="text-sm text-gray-500 truncate">{session.title}</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          <div className={`w-2 h-2 rounded-full shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <button
+            onClick={chatOpen ? handleCloseChat : handleOpenChat}
+            className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+          >
+            {chatOpen ? 'Hide Chat' : 'Chat'}
+          </button>
+          {user?.role === 'lecturer' && (
+            <button
+              onClick={handleEndSession}
+              disabled={ending || !session}
+              className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-600 disabled:opacity-50 transition"
+            >
+              {ending ? '...' : 'End'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0 overflow-x-auto">
+        <div className="flex items-center gap-1.5">
+          {COLORS.map((color) => (
+            <button
+              key={color}
+              onClick={() => handleColorChange(color)}
+              className={`w-5 h-5 rounded-full border-2 transition shrink-0 ${
+                activeColor === color && !erasing ? 'border-black scale-110' : 'border-gray-200'
+              }`}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+        <div className="w-px h-5 bg-gray-200 shrink-0" />
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-gray-400">Size</span>
+          {[2, 4, 8, 16].map((size) => (
+            <button
+              key={size}
+              onClick={() => handleSizeChange(size)}
+              className={`rounded-full bg-black transition shrink-0 ${
+                brushSize === size ? 'opacity-100 ring-2 ring-black ring-offset-1' : 'opacity-30'
+              }`}
+              style={{ width: size + 6, height: size + 6 }}
+            />
+          ))}
+        </div>
+        <div className="w-px h-5 bg-gray-200 shrink-0" />
+        <button
+          onClick={handleEraserToggle}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition shrink-0 ${
+            erasing ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Eraser
+        </button>
+        <button
+          onClick={clearCanvas}
+          className="px-3 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-500 hover:bg-red-100 transition shrink-0"
+        >
+          Clear
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Whiteboard */}
+        <div className="flex-1 overflow-hidden p-3">
+          <div
+            ref={containerRef}
+            className="bg-white rounded-xl shadow border w-full h-full overflow-hidden"
+          >
+            <canvas ref={canvasRef} />
+          </div>
+        </div>
+
+        {/* Desktop Chat Panel */}
+        {chatOpen && (
+          <div className="hidden md:flex w-72 bg-white border-l flex-col shrink-0">
+            {ChatPanel}
+          </div>
+        )}
+
+        {/* Mobile Chat Bottom Sheet */}
+        {chatOpen && (
+          <div className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl ${
+              chatClosing ? 'animate-slide-down' : 'animate-slide-up'
+            }`}
+            style={{ height: '60vh' }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
+            {ChatPanel}
+          </div>
+        )}
+
+        {/* Mobile Chat backdrop */}
+        {chatOpen && (
+          <div
+             className={`md:hidden fixed inset-0 z-40 bg-black/20 ${
+              chatClosing ? 'animate-fade-out' : 'animate-fade-in'
+            }`}
+            onClick={() => handleCloseChat()}
+          />
+        )}
       </div>
     </div>
   );
