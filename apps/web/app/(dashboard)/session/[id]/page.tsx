@@ -30,11 +30,24 @@ export default function SessionPage() {
   const [activeColor, setActiveColor] = useState('#000000');
   const [erasing, setErasing] = useState(false);
   const [brushSize, setBrushSize] = useState(3);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [latestMsg, setLatestMsg] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { clearCanvas, setColor, setWidth, toggleEraser } = useWhiteboard(id, canvasRef, containerRef);
+  const { clearCanvas, setColor, setWidth, toggleEraser, resetView } = useWhiteboard(id, canvasRef, containerRef);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef(0);
   const router = useRouter();
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     api.get(`/sessions/${id}`).then((res) => setSession(res.data)).catch(() => {
@@ -50,14 +63,62 @@ export default function SessionPage() {
     return () => { socket.off('session:ended'); };
   }, [id, router]);
 
+  // Handle new messages
   useEffect(() => {
+    if (messages.length <= prevMsgCountRef.current) return;
+    const newMsgs = messages.slice(prevMsgCountRef.current);
+    prevMsgCountRef.current = messages.length;
+
+    if (!chatOpen) {
+      setUnreadCount((c) => c + newMsgs.length);
+      const last = newMsgs[newMsgs.length - 1];
+      setLatestMsg(`${last.user.name}: ${last.content}`);
+
+      // Auto hide bubble after 4s
+      setTimeout(() => setLatestMsg(null), 4000);
+    }
+  }, [messages, chatOpen]);
+
+  // Scroll detection
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 100);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    setShowScrollBtn(false);
+  };
+
+  const handleCloseChat = () => {
+    setChatClosing(true);
+    setTimeout(() => {
+      setChatOpen(false);
+      setChatClosing(false);
+    }, 280);
+  };
+
+  const handleOpenChat = () => {
+    setChatOpen(true);
+    setChatClosing(false);
+    setUnreadCount(0);
+    setLatestMsg(null);
+    setTimeout(() => scrollToBottom(), 100);
+  };
 
   const handleSend = () => {
     if (!input.trim()) return;
     sendMessage(input.trim());
     setInput('');
+    setTimeout(() => scrollToBottom(), 50);
   };
 
   const handleEndSession = async () => {
@@ -90,31 +151,23 @@ export default function SessionPage() {
     setBrushSize(size);
     setWidth(size);
   };
-  const handleCloseChat = () => {
-    setChatClosing(true);
-    setTimeout(() => {
-      setChatOpen(false);
-      setChatClosing(false);
-    }, 280);
-  };
-
-  const handleOpenChat = () => {
-    setChatOpen(true);
-    setChatClosing(false);
-  };
 
   const ChatPanel = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <div className="px-4 py-3 border-b shrink-0 flex items-center justify-between">
         <h2 className="font-semibold text-sm">Chat</h2>
         <button
-          onClick={() => handleCloseChat()}
+          onClick={handleCloseChat}
           className="text-gray-400 hover:text-black text-lg leading-none"
         >
           ×
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0"
+      >
         {messages.length === 0 && (
           <p className="text-center text-gray-400 text-xs mt-4">No messages yet</p>
         )}
@@ -137,6 +190,17 @@ export default function SessionPage() {
         ))}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-16 right-4 bg-black text-white text-xs px-3 py-1.5 rounded-full shadow-lg hover:bg-gray-800 transition animate-fade-in"
+        >
+          ↓ Latest
+        </button>
+      )}
+
       <div className="px-4 py-3 border-t flex gap-2 shrink-0">
         <input
           type="text"
@@ -171,12 +235,20 @@ export default function SessionPage() {
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <div className={`w-2 h-2 rounded-full shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+
+          {/* Chat button with unread badge */}
           <button
             onClick={chatOpen ? handleCloseChat : handleOpenChat}
-            className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+            className="relative bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
           >
             {chatOpen ? 'Hide Chat' : 'Chat'}
+            {!chatOpen && unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center animate-fade-in">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
+
           {user?.role === 'lecturer' && (
             <button
               onClick={handleEndSession}
@@ -240,27 +312,27 @@ export default function SessionPage() {
         <div className="flex-1 overflow-hidden p-3">
           <div
             ref={containerRef}
-            className="bg-white rounded-xl shadow border w-full h-full overflow-hidden"
+            className="bg-gray-100 rounded-xl shadow border w-full aspect-video overflow-hidden relative"
           >
             <canvas ref={canvasRef} />
           </div>
         </div>
 
         {/* Desktop Chat Panel */}
-        {chatOpen && (
+        {(chatOpen || chatClosing) && (
           <div className="hidden md:flex w-72 bg-white border-l flex-col shrink-0">
             {ChatPanel}
           </div>
         )}
 
         {/* Mobile Chat Bottom Sheet */}
-        {chatOpen && (
-          <div className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl ${
+        {(chatOpen || chatClosing) && (
+          <div
+            className={`md:hidden fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white rounded-t-2xl shadow-2xl ${
               chatClosing ? 'animate-slide-down' : 'animate-slide-up'
             }`}
             style={{ height: '60vh' }}
           >
-            {/* Handle */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
               <div className="w-10 h-1 bg-gray-300 rounded-full" />
             </div>
@@ -268,14 +340,27 @@ export default function SessionPage() {
           </div>
         )}
 
-        {/* Mobile Chat backdrop */}
-        {chatOpen && (
+        {/* Mobile backdrop */}
+        {(chatOpen || chatClosing) && (
           <div
-             className={`md:hidden fixed inset-0 z-40 bg-black/20 ${
+            className={`md:hidden fixed inset-0 z-40 bg-black/20 ${
               chatClosing ? 'animate-fade-out' : 'animate-fade-in'
             }`}
-            onClick={() => handleCloseChat()}
+            onClick={handleCloseChat}
           />
+        )}
+
+        {/* Mobile new message bubble */}
+        {!chatOpen && latestMsg && isMobile && (
+          <div
+            onClick={handleOpenChat}
+            className="md:hidden fixed bottom-4 inset-x-4 z-30 bg-black text-white rounded-2xl px-4 py-3 shadow-xl cursor-pointer animate-slide-up"
+          >
+            <p className="text-xs truncate">{latestMsg}</p>
+            {unreadCount > 1 && (
+              <p className="text-[10px] text-gray-400 mt-0.5">{unreadCount} new messages</p>
+            )}
+          </div>
         )}
       </div>
     </div>

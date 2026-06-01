@@ -8,6 +8,7 @@ import { verifyToken } from './middleware/auth';
 import { registerChatHandlers } from './handlers/chat';
 import { registerWhiteboardHandlers } from './handlers/whiteboard';
 import { Message } from './models/Message';
+import { WhiteboardState } from './models/WhiteboardState';
 
 dotenv.config();
 
@@ -27,40 +28,46 @@ app.get('/', (req, res) => {
   res.json({ message: 'Lectra Realtime Server' });
 });
 
-// Internal endpoint — dipanggil Laravel saat session/course dihapus
 app.post('/internal/session/:sessionId/end', async (req, res) => {
   const { sessionId } = req.params;
   await Message.deleteMany({ sessionId });
-  io.to(`session:${sessionId}`).emit('session:ended');
+  await WhiteboardState.deleteOne({ sessionId });
+  chatNsp.to(`session:${sessionId}`).emit('session:ended');
   res.json({ message: 'Session ended' });
 });
 
 app.post('/internal/course/:courseId/end', async (req, res) => {
   const { courseId } = req.params;
-  // Hapus semua messages dengan sessionId yang ada di course ini
-  // sessionIds dikirim dari Laravel
   const { sessionIds } = req.body as { sessionIds: string[] };
   if (sessionIds?.length) {
     await Message.deleteMany({ sessionId: { $in: sessionIds } });
+    await WhiteboardState.deleteMany({ sessionId: { $in: sessionIds } });
     sessionIds.forEach((sid) => {
-      io.to(`session:${sid}`).emit('session:ended');
+      chatNsp.to(`session:${sid}`).emit('session:ended');
     });
   }
   res.json({ message: 'Course sessions ended' });
 });
 
-io.use(verifyToken);
+// Namespace terpisah
+const chatNsp = io.of('/chat');
+const whiteboardNsp = io.of('/whiteboard');
 
-io.on('connection', (socket) => {
+chatNsp.use(verifyToken);
+whiteboardNsp.use(verifyToken);
+
+chatNsp.on('connection', (socket) => {
   const user = socket.data.user;
-  console.log(`Connected: ${user.name} (${user.role})`);
+  console.log(`[Chat] Connected: ${user.name}`);
+  registerChatHandlers(chatNsp, socket);
+  socket.on('disconnect', () => console.log(`[Chat] Disconnected: ${user.name}`));
+});
 
-  registerChatHandlers(io, socket);
-  registerWhiteboardHandlers(io, socket);
-
-  socket.on('disconnect', () => {
-    console.log(`Disconnected: ${user.name}`);
-  });
+whiteboardNsp.on('connection', (socket) => {
+  const user = socket.data.user;
+  console.log(`[Whiteboard] Connected: ${user.name}`);
+  registerWhiteboardHandlers(whiteboardNsp, socket);
+  socket.on('disconnect', () => console.log(`[Whiteboard] Disconnected: ${user.name}`));
 });
 
 const PORT = process.env.PORT || 3001;

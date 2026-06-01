@@ -1,4 +1,4 @@
-import { Server, Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
 import { Message } from '../models/Message';
 import axios from 'axios';
 
@@ -15,9 +15,10 @@ async function sessionExists(sessionId: string, token: string): Promise<boolean>
   }
 }
 
-export function registerChatHandlers(io: Server, socket: Socket) {
+export function registerChatHandlers(nsp: Namespace, socket: Socket) {
   const user = socket.data.user;
   const token = socket.handshake.auth?.token;
+  const activeSessionIds = new Set<string>();
 
   socket.on('chat:join', async (sessionId: string) => {
     const exists = await sessionExists(sessionId, token);
@@ -26,6 +27,7 @@ export function registerChatHandlers(io: Server, socket: Socket) {
       return;
     }
 
+    activeSessionIds.add(sessionId);
     socket.join(`session:${sessionId}`);
 
     const history = await Message.find({ sessionId })
@@ -36,27 +38,24 @@ export function registerChatHandlers(io: Server, socket: Socket) {
   });
 
   socket.on('chat:leave', (sessionId: string) => {
+    activeSessionIds.delete(sessionId);
     socket.leave(`session:${sessionId}`);
   });
 
   socket.on('chat:message', async (data: { sessionId: string; content: string }) => {
-    const exists = await sessionExists(data.sessionId, token);
-    if (!exists) {
+    // Cek dari Set — tidak hit API
+    if (!activeSessionIds.has(data.sessionId)) {
       socket.emit('session:ended');
       return;
     }
 
     const message = await Message.create({
       sessionId: data.sessionId,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-      },
+      user: { id: user.id, name: user.name, role: user.role },
       content: data.content,
     });
 
-    io.to(`session:${data.sessionId}`).emit('chat:message', {
+    nsp.to(`session:${data.sessionId}`).emit('chat:message', {
       id: message._id.toString(),
       user: message.user,
       content: message.content,
@@ -66,9 +65,7 @@ export function registerChatHandlers(io: Server, socket: Socket) {
 
   socket.on('session:end', async (sessionId: string) => {
     if (user.role !== 'lecturer') return;
-
     await Message.deleteMany({ sessionId });
-    io.to(`session:${sessionId}`).emit('session:ended');
-    console.log(`Session ${sessionId} ended by ${user.name}`);
+    nsp.to(`session:${sessionId}`).emit('session:ended');
   });
 }
