@@ -36,3 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('assignments/{assignment}/submit', [SubmissionController::class, 'submit']);
     Route::post('assignments/{assignment}/submissions/{submission}/grade', [SubmissionController::class, 'grade']);
 });
+
+Route::middleware('auth:sanctum')->get('assignments/{id}', function($id) {
+    return response()->json(\App\Models\Assignment::findOrFail($id));
+});

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
+import { useAssignments } from '@/lib/hooks/useAssignments';
 import api from '@/lib/axios';
 import Link from 'next/link';
 
@@ -27,9 +28,13 @@ export default function CourseDetailPage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', scheduled_at: '' });
+  const [activeTab, setActiveTab] = useState<'sessions' | 'assignments'>('sessions');
+  const [showSessionForm, setShowSessionForm] = useState(false);
+  const [showAssignmentForm, setShowAssignmentForm] = useState(false);
+  const [sessionForm, setSessionForm] = useState({ title: '', description: '', scheduled_at: '' });
+  const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', due_at: '' });
   const [submitting, setSubmitting] = useState(false);
+  const { assignments, createAssignment, deleteAssignment } = useAssignments(id);
   const router = useRouter();
 
   useEffect(() => {
@@ -42,29 +47,39 @@ export default function CourseDetailPage() {
       setCourse(courseRes.data);
       setSessions(sessionsRes.data);
     }).catch((err) => {
-      if (err.response?.status === 404) {
-        router.push('/courses');
-      }
+      if (err.response?.status === 404) router.push('/courses');
     }).finally(() => setLoading(false));
   }, [id, user, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await api.post(`/courses/${id}/sessions`, form);
+      const res = await api.post(`/courses/${id}/sessions`, sessionForm);
       setSessions((prev) => [...prev, res.data]);
-      setForm({ title: '', description: '', scheduled_at: '' });
-      setShowForm(false);
+      setSessionForm({ title: '', description: '', scheduled_at: '' });
+      setShowSessionForm(false);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteSession = async (sessionId: string, courseId: string) => {
+  const handleAssignmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await createAssignment(assignmentForm);
+      setAssignmentForm({ title: '', description: '', due_at: '' });
+      setShowAssignmentForm(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
     if (!confirm('Delete this session?')) return;
     try {
-      await api.delete(`/courses/${courseId}/sessions/${sessionId}`);
+      await api.delete(`/courses/${id}/sessions/${sessionId}`);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     } catch {
       alert('Failed to delete session.');
@@ -104,91 +119,197 @@ export default function CourseDetailPage() {
           )}
         </div>
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold">Sessions</h2>
-          {user?.role === 'lecturer' && (
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+          {(['sessions', 'assignments'] as const).map((tab) => (
             <button
-              onClick={() => setShowForm(!showForm)}
-              className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition ${
+                activeTab === tab ? 'bg-white shadow text-black' : 'text-gray-500 hover:text-black'
+              }`}
             >
-              {showForm ? 'Cancel' : '+ New Session'}
+              {tab}
             </button>
-          )}
+          ))}
         </div>
 
-        {showForm && (
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border p-6 mb-6 space-y-4">
-            <h3 className="font-semibold">Create New Session</h3>
-            <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                placeholder="Introduction to WebSockets"
-                required
-              />
+        {/* Sessions Tab */}
+        {activeTab === 'sessions' && (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold">Sessions</h2>
+              {user?.role === 'lecturer' && (
+                <button
+                  onClick={() => setShowSessionForm(!showSessionForm)}
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+                >
+                  {showSessionForm ? 'Cancel' : '+ New Session'}
+                </button>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                rows={2}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Scheduled At</label>
-              <input
-                type="datetime-local"
-                value={form.scheduled_at}
-                onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition"
-            >
-              {submitting ? 'Creating...' : 'Create Session'}
-            </button>
-          </form>
+
+            {showSessionForm && (
+              <form onSubmit={handleSessionSubmit} className="bg-white rounded-2xl border p-6 mb-6 space-y-4">
+                <h3 className="font-semibold">Create New Session</h3>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Title</label>
+                  <input
+                    value={sessionForm.title}
+                    onChange={(e) => setSessionForm({ ...sessionForm, title: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    value={sessionForm.description}
+                    onChange={(e) => setSessionForm({ ...sessionForm, description: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Scheduled At</label>
+                  <input
+                    type="datetime-local"
+                    value={sessionForm.scheduled_at}
+                    onChange={(e) => setSessionForm({ ...sessionForm, scheduled_at: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition"
+                >
+                  {submitting ? 'Creating...' : 'Create Session'}
+                </button>
+              </form>
+            )}
+
+            {sessions.length === 0 ? (
+              <p className="text-gray-400 text-sm">No sessions yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {sessions.map((session) => (
+                  <div key={session.id} className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition">
+                    <Link href={`/session/${session.id}`} className="flex-1">
+                      <h3 className="font-semibold">{session.title}</h3>
+                      {session.description && (
+                        <p className="text-sm text-gray-500 mt-1">{session.description}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-2">
+                        {new Date(session.scheduled_at).toLocaleString()}
+                      </p>
+                    </Link>
+                    <div className="flex items-center gap-3 ml-4">
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
+                        {session.status}
+                      </span>
+                      {user?.role === 'lecturer' && (
+                        <button
+                          onClick={() => handleDeleteSession(session.id)}
+                          className="text-red-400 hover:text-red-600 text-xs transition"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {sessions.length === 0 ? (
-          <p className="text-gray-400 text-sm">No sessions yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {sessions.map((session) => (
-              <div key={session.id} className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition">
-                <Link href={`/session/${session.id}`} className="flex-1">
-                  <h3 className="font-semibold">{session.title}</h3>
-                  {session.description && (
-                    <p className="text-sm text-gray-500 mt-1">{session.description}</p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-2">
-                    {new Date(session.scheduled_at).toLocaleString()}
-                  </p>
-                </Link>
-                <div className="flex items-center gap-3 ml-4">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
-                    {session.status}
-                  </span>
-                  {user?.role === 'lecturer' && (
-                    <button
-                      onClick={() => handleDeleteSession(session.id, id)}
-                      className="text-red-400 hover:text-red-600 text-xs transition"
-                    >
-                      Delete
-                    </button>
-                  )}
+        {/* Assignments Tab */}
+        {activeTab === 'assignments' && (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold">Assignments</h2>
+              {user?.role === 'lecturer' && (
+                <button
+                  onClick={() => setShowAssignmentForm(!showAssignmentForm)}
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
+                >
+                  {showAssignmentForm ? 'Cancel' : '+ New Assignment'}
+                </button>
+              )}
+            </div>
+
+            {showAssignmentForm && (
+              <form onSubmit={handleAssignmentSubmit} className="bg-white rounded-2xl border p-6 mb-6 space-y-4">
+                <h3 className="font-semibold">Create New Assignment</h3>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Title</label>
+                  <input
+                    value={assignmentForm.title}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    required
+                  />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    value={assignmentForm.description}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Due Date</label>
+                  <input
+                    type="datetime-local"
+                    value={assignmentForm.due_at}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, due_at: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition"
+                >
+                  {submitting ? 'Creating...' : 'Create Assignment'}
+                </button>
+              </form>
+            )}
+
+            {assignments.length === 0 ? (
+              <p className="text-gray-400 text-sm">No assignments yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {assignments.map((assignment) => (
+                  <div key={assignment.id} className="bg-white rounded-2xl border p-6 flex items-center justify-between hover:shadow-md transition">
+                    <Link href={`/assignments/${assignment.id}`} className="flex-1">
+                      <h3 className="font-semibold">{assignment.title}</h3>
+                      {assignment.description && (
+                        <p className="text-sm text-gray-500 mt-1">{assignment.description}</p>
+                      )}
+                      {assignment.due_at && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Due: {new Date(assignment.due_at).toLocaleString()}
+                        </p>
+                      )}
+                    </Link>
+                    {user?.role === 'lecturer' && (
+                      <button
+                        onClick={() => deleteAssignment(assignment.id)}
+                        className="text-red-400 hover:text-red-600 text-xs ml-4 transition"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </main>
     </div>

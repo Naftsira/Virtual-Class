@@ -36,8 +36,7 @@ return [
     ],
     'supabase' => [
         'url' => env('SUPABASE_URL'),
-        'key' => env('SUPABASE_SERVICE_KEY'),
+        'key' => env('SUPABASE_KEY'),
         'bucket' => env('SUPABASE_BUCKET', 'submissions'),
     ],
 ];
-// tambah sebelum closing ];
