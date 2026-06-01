@@ -62,7 +62,7 @@ class SubmissionController extends Controller
             $path = "submissions/{$assignmentId}/{$request->user()->id}/" . time() . '_' . $file->getClientOriginalName();
             $url = $this->storage->upload($file, $path);
 
-            $submission->file_url = $url;
+            // $submission->file_url = $url;
             $submission->file_path = $path;
         }
 

@@ -23,6 +23,20 @@ export default function DashboardPage() {
     );
   }
 
+  const lecturerCards = [
+    { label: 'Courses', href: '/courses', desc: 'Manage your courses' },
+    { label: 'Sessions', href: '/courses', desc: 'View active sessions' },
+    { label: 'Assignments', href: '/courses', desc: 'Create assignments' },
+  ];
+
+  const studentCards = [
+    { label: 'My Courses', href: '/courses', desc: 'View enrolled courses' },
+    { label: 'Assignments', href: '/courses', desc: 'Submit assignments' },
+    { label: 'Join Course', href: '/enroll', desc: 'Enroll with course code' },
+  ];
+
+  const cards = user.role === 'lecturer' ? lecturerCards : studentCards;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white border-b px-6 py-4 flex items-center justify-between">
@@ -31,9 +45,9 @@ export default function DashboardPage() {
           <span className="text-xs text-gray-400 ml-2">Think, Draw, Learn.</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{user?.name}</span>
+          <span className="text-sm text-gray-600">{user.name}</span>
           <span className="text-xs bg-black text-white px-2 py-1 rounded-full capitalize">
-            {user?.role}
+            {user.role}
           </span>
           <button
             onClick={logout}
@@ -46,29 +60,26 @@ export default function DashboardPage() {
 
       <main className="max-w-6xl mx-auto px-6 py-10">
         <h1 className="text-2xl font-bold mb-1">
-          Good morning, {user?.name?.split(' ')[0]}.
+          Good morning, {user.name?.split(' ')[0]}.
         </h1>
         <p className="text-gray-500 text-sm mb-8">
-          {user?.role === 'lecturer'
+          {user.role === 'lecturer'
             ? 'Manage your courses and sessions from here.'
             : 'Check your courses and upcoming sessions.'}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            { label: 'Courses', href: '/courses' },
-            { label: 'Sessions', href: '/courses' },
-            { label: 'Assignments', href: '/courses' },
-          ].map((item) => (
+          {cards.map((card) => (
             <Link
-              key={item.label}
-              href={item.href}
+              key={card.label}
+              href={card.href}
               className="bg-white rounded-2xl border p-6 hover:shadow-md transition cursor-pointer"
             >
               <h2 className="font-semibold text-sm text-gray-400 uppercase tracking-wide mb-2">
-                {item.label}
+                {card.label}
               </h2>
-              <p className="text-3xl font-bold">→</p>
+              <p className="text-sm text-gray-600">{card.desc}</p>
+              <p className="text-2xl font-bold mt-3">→</p>
             </Link>
           ))}
         </div>
