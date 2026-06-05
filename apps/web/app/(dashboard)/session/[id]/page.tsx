@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/store/auth';
 import { getSocket } from '@/lib/socket';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import { useVoice } from '@/lib/hooks/useVoice';
 
 const COLORS = ['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6'];
 
@@ -37,6 +38,7 @@ export default function SessionPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { clearCanvas, setColor, setWidth, toggleEraser, resetView } = useWhiteboard(id, canvasRef, containerRef);
+  const { connected: voiceConnected, muted: voiceMuted, toggleMute, speakers, audioLevel } = useVoice(id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const prevMsgCountRef = useRef(0);
@@ -236,6 +238,15 @@ export default function SessionPage() {
         <div className="flex items-center gap-2 shrink-0 ml-2">
           <div className={`w-2 h-2 rounded-full shrink-0 ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
 
+          <button onClick={toggleMute} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${voiceMuted ? "bg-red-100 text-red-600 hover:bg-red-200" : voiceConnected ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500"}`}>{voiceMuted ? "🔇 Muted" : voiceConnected ? "🎙️ Live" : "🎙️ ..."}</button>
+          {voiceConnected && !voiceMuted && (
+            <div className="flex items-end gap-0.5 h-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-1 rounded-sm transition-all duration-75" style={{ height: `${Math.max(2, audioLevel > i / 8 ? 14 : 3)}px`, backgroundColor: i < 5 ? "#22c55e" : i < 7 ? "#f59e0b" : "#ef4444", opacity: audioLevel > i / 8 ? 1 : 0.3 }} />
+              ))}
+            </div>
+          )}
+          <Link href={`/session/${id}/playground`} className="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-200 transition">Playground</Link>
           {/* Chat button with unread badge */}
           <button
             onClick={chatOpen ? handleCloseChat : handleOpenChat}

@@ -18,7 +18,7 @@ class StorageService
         $this->bucket = config('services.supabase.bucket');
     }
 
-    public function upload(UploadedFile $file, string $path): string
+    public function upload(UploadedFile $file, string $path): void
     {
         $response = Http::withHeaders([
             'Authorization' => "Bearer {$this->key}",
@@ -32,8 +32,6 @@ class StorageService
         if ($response->failed()) {
             throw new \Exception('Upload failed: ' . $response->body());
         }
-
-        return $this->getUrl($path);
     }
 
     public function delete(string $path): void
@@ -43,19 +41,17 @@ class StorageService
         ])->delete("{$this->url}/storage/v1/object/{$this->bucket}/{$path}");
     }
 
-    public function getUrl(string $path): string
-    {
-        return "{$this->url}/storage/v1/object/sign/{$this->bucket}/{$path}?token=" . $this->getSignedToken($path);
-    }
-
-    protected function getSignedToken(string $path): string
+    public function getSignedUrl(string $path, int $expiresIn = 3600): string
     {
         $response = Http::withHeaders([
             'Authorization' => "Bearer {$this->key}",
         ])->post("{$this->url}/storage/v1/object/sign/{$this->bucket}/{$path}", [
-            'expiresIn' => 3600,
+            'expiresIn' => $expiresIn,
         ]);
 
-        return $response->json('signedURL') ?? '';
+        $signedUrl = $response->json('signedURL');
+        if (!$signedUrl) return '';
+
+        return "{$this->url}/storage/v1{$signedUrl}";
     }
 }
