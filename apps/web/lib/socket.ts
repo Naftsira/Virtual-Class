@@ -42,5 +42,7 @@ export function connectWhiteboardSocket() {
 
 export function disconnectAll() {
   chatSocket?.disconnect();
+  chatSocket = null;
   whiteboardSocket?.disconnect();
+  whiteboardSocket = null;
 }

@@ -190,7 +190,7 @@ export function useWhiteboard(
     });
 
     return () => {
-      initRef.current = false;
+      // initRef reset handled by dispose
       socket.off('whiteboard:draw');
       socket.off('whiteboard:clear');
       socket.off('whiteboard:state');

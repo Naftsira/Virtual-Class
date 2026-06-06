@@ -15,7 +15,7 @@ export function useVoice(sessionId: string) {
     const connect = async () => {
       try {
         const token = Cookies.get('token');
-        const res = await fetch('http://localhost:3001/livekit/token', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_REALTIME_URL}/livekit/token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

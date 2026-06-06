@@ -326,6 +326,7 @@ function lightenColor(hex: string, amount: number): string {
 export default function PlaygroundPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const roomRef = useRef<Room | null>(null);
   const playersRef = useRef<Map<string, Player>>(new Map());
@@ -401,7 +402,7 @@ export default function PlaygroundPage() {
       try {
         // Check session masih exist
         const cookieToken = document.cookie.match(/token=([^;]+)/)?.[1] || '';
-        const sessionCheck = await fetch(`http://localhost:8000/api/sessions/${id}`, {
+        const sessionCheck = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sessions/${id}`, {
           headers: { Authorization: `Bearer ${cookieToken}`, Accept: 'application/json' },
         });
         if (!sessionCheck.ok) {
@@ -409,7 +410,7 @@ export default function PlaygroundPage() {
           return;
         }        
         const token = document.cookie.match(/token=([^;]+)/)?.[1] || '';
-        const res = await fetch('http://localhost:3001/livekit/token', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_REALTIME_URL}/livekit/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ sessionId: id }),
