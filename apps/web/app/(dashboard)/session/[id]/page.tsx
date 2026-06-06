@@ -37,7 +37,7 @@ export default function SessionPage() {
   const [isMobile, setIsMobile] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { clearCanvas, setColor, setWidth, toggleEraser, resetView } = useWhiteboard(id, canvasRef, containerRef);
+  const { clearCanvas, setColor, setWidth, toggleEraser } = useWhiteboard(id, canvasRef, containerRef);
   const { connected: voiceConnected, muted: voiceMuted, toggleMute, speakers, audioLevel } = useVoice(id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
