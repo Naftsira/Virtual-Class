@@ -1,18 +1,48 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
 import Link from 'next/link';
 
-export default function EnrollPage() {
+function EnrollForm() {
   const { user } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const codeParam = searchParams.get('code');
+    if (codeParam) {
+      setCode(codeParam.toUpperCase());
+      // Auto submit kalau ada code dari URL
+      handleEnroll(codeParam.toUpperCase());
+    }
+  }, []);
+
+  const handleEnroll = async (enrollCode: string) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const res = await api.post('/enroll', { code: enrollCode });
+      setSuccess(`Successfully enrolled in ${res.data.course.name}!`);
+      setTimeout(() => router.push('/courses'), 1500);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to enroll.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleEnroll(code);
+  };
 
   if (user?.role !== 'student') {
     return (
@@ -21,23 +51,6 @@ export default function EnrollPage() {
       </div>
     );
   }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    try {
-      const res = await api.post('/enroll', { code });
-      setSuccess(`Successfully enrolled in ${res.data.course.name}!`);
-      setCode('');
-      setTimeout(() => router.push('/courses'), 1500);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to enroll.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -58,6 +71,10 @@ export default function EnrollPage() {
           <div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm">{success}</div>
         )}
 
+        {loading && !error && !success && (
+          <div className="mb-4 p-3 bg-blue-50 text-blue-600 rounded-lg text-sm">Enrolling...</div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Course Code</label>
@@ -65,7 +82,7 @@ export default function EnrollPage() {
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black font-mono"
-              placeholder="IF-001"
+              placeholder="XXXX-XXXX"
               required
             />
           </div>
@@ -79,5 +96,13 @@ export default function EnrollPage() {
         </form>
       </main>
     </div>
+  );
+}
+
+export default function EnrollPage() {
+  return (
+    <Suspense>
+      <EnrollForm />
+    </Suspense>
   );
 }

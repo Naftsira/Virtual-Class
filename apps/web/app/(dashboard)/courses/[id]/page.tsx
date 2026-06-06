@@ -112,7 +112,21 @@ export default function CourseDetailPage() {
 
       <main className="max-w-4xl mx-auto px-6 py-10">
         <div className="mb-8">
-          <span className="text-xs text-gray-400 font-mono">{course.code}</span>
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-xs text-gray-400 font-mono">{course.code}</span>
+            {user?.role === 'lecturer' && (
+              <button
+                onClick={() => {
+                  const link = `${window.location.origin}/enroll/${course.code}`;
+                  navigator.clipboard.writeText(link);
+                  alert("Enroll link copied!");
+                }}
+                className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-200 transition"
+              >
+                Share Link
+              </button>
+            )}
+          </div>
           <h1 className="text-2xl font-bold">{course.name}</h1>
           {course.description && (
             <p className="text-gray-500 text-sm mt-1">{course.description}</p>
@@ -293,7 +307,7 @@ export default function CourseDetailPage() {
                       )}
                       {assignment.due_at && (
                         <p className="text-xs text-gray-400 mt-2">
-                          Due: {new Date(assignment.due_at).toLocaleString()}
+                          Due: {new Date(assignment.due_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}
                         </p>
                       )}
                     </Link>

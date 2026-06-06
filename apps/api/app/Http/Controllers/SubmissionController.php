@@ -19,6 +19,15 @@ class SubmissionController extends Controller
         } else {
             $data['file_url'] = null;
         }
+
+        // Tambah is_late flag
+        $assignment = $submission->assignment;
+        if ($assignment && $assignment->due_at && $submission->submitted_at) {
+            $data['is_late'] = $submission->submitted_at->gt($assignment->due_at);
+        } else {
+            $data['is_late'] = false;
+        }
+
         return $data;
     }
 
@@ -26,6 +35,7 @@ class SubmissionController extends Controller
     {
         $submission = Submission::where('assignment_id', $assignmentId)
             ->where('student_id', $request->user()->id)
+            ->with('assignment')
             ->first();
 
         if (!$submission) return response()->json(null);
@@ -36,7 +46,7 @@ class SubmissionController extends Controller
     public function index(string $assignmentId)
     {
         $submissions = Submission::where('assignment_id', $assignmentId)
-            ->with('student:id,name,email')
+            ->with('student:id,name,email', 'assignment')
             ->get();
 
         return response()->json($submissions->map(fn($s) => $this->withSignedUrl($s)));
@@ -74,6 +84,7 @@ class SubmissionController extends Controller
         }
 
         $submission->save();
+        $submission->load('assignment');
 
         return response()->json($this->withSignedUrl($submission), 201);
     }
@@ -90,6 +101,7 @@ class SubmissionController extends Controller
         ]);
 
         $submission = Submission::where('assignment_id', $assignmentId)
+            ->with('assignment')
             ->findOrFail($submissionId);
 
         $submission->update([

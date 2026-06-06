@@ -9,7 +9,7 @@ export default function CoursesPage() {
   const { user } = useAuth();
   const { courses, loading, createCourse, deleteCourse } = useCourses();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ code: '', name: '', description: '' });
+  const [form, setForm] = useState({ name: '', description: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,7 +17,7 @@ export default function CoursesPage() {
     setSubmitting(true);
     try {
       await createCourse(form);
-      setForm({ code: '', name: '', description: '' });
+      setForm({ name: '', description: '' });
       setShowForm(false);
     } finally {
       setSubmitting(false);
@@ -47,16 +47,6 @@ export default function CoursesPage() {
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-2xl border p-6 mb-6 space-y-4">
             <h2 className="font-semibold">Create New Course</h2>
-            <div>
-              <label className="block text-sm font-medium mb-1">Course Code</label>
-              <input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                placeholder="IF-001"
-                required
-              />
-            </div>
             <div>
               <label className="block text-sm font-medium mb-1">Course Name</label>
               <input

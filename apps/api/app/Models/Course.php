@@ -23,7 +23,19 @@ class Course extends Model
         parent::boot();
         static::creating(function ($model) {
             $model->id = (string) Str::uuid();
+            if (empty($model->code)) {
+                $model->code = self::generateUniqueCode();
+            }
         });
+    }
+
+    protected static function generateUniqueCode(): string
+    {
+        do {
+            $code = strtoupper(Str::random(4)) . '-' . strtoupper(Str::random(4));
+        } while (self::where('code', $code)->exists());
+
+        return $code;
     }
 
     public function lecturer()

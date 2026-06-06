@@ -21,7 +21,6 @@ export function useCourses() {
   }, []);
 
   const createCourse = async (data: {
-    code: string;
     name: string;
     description?: string;
   }) => {

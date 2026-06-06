@@ -23,7 +23,24 @@ interface Submission {
   grade: number | null;
   feedback: string | null;
   submitted_at: string | null;
+  is_late: boolean;
   student?: { id: string; name: string; email: string };
+}
+
+function formatDateTime(dateStr: string) {
+  return new Date(dateStr).toLocaleString('en-US', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function isPastDue(dueAt: string) {
+  return new Date() > new Date(dueAt);
 }
 
 export default function AssignmentPage() {
@@ -37,6 +54,9 @@ export default function AssignmentPage() {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [grading, setGrading] = useState<string | null>(null);
+  const [editingDue, setEditingDue] = useState(false);
+  const [newDueAt, setNewDueAt] = useState("");
+  const [savingDue, setSavingDue] = useState(false);
   const [gradeForm, setGradeForm] = useState<{ grade: string; feedback: string }>({ grade: '', feedback: '' });
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -46,7 +66,6 @@ export default function AssignmentPage() {
 
     const fetchData = async () => {
       try {
-        // Get assignment — cari dari courses
         const assignmentRes = await api.get(`/assignments/${id}`);
         setAssignment(assignmentRes.data);
 
@@ -105,6 +124,21 @@ export default function AssignmentPage() {
     }
   };
 
+  const saveDueDate = async () => {
+    setSavingDue(true);
+    try {
+      const res = await api.put(`/courses/${assignment!.course_id}/assignments/${id}`, {
+        due_at: new Date(newDueAt).toISOString(),
+      });
+      setAssignment(res.data);
+      setEditingDue(false);
+    } catch {
+      alert("Failed to update due date.");
+    } finally {
+      setSavingDue(false);
+    }
+  };
+
   const statusColor = (status: string) => {
     if (status === 'graded') return 'bg-green-100 text-green-700';
     if (status === 'submitted') return 'bg-blue-100 text-blue-700';
@@ -118,6 +152,8 @@ export default function AssignmentPage() {
   );
 
   if (!assignment) return null;
+
+  const overdue = assignment.due_at ? isPastDue(assignment.due_at) : false;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -136,11 +172,52 @@ export default function AssignmentPage() {
           {assignment.description && (
             <p className="text-gray-600 text-sm mb-4">{assignment.description}</p>
           )}
-          {assignment.due_at && (
-            <p className="text-xs text-gray-400">
-              Due: {new Date(assignment.due_at).toLocaleString()}
-            </p>
-          )}
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+  {editingDue ? (
+    <div className="flex items-center gap-2">
+      <input
+        type="datetime-local"
+        defaultValue={assignment.due_at ? new Date(assignment.due_at).toISOString().slice(0, 16) : ''}
+        onChange={(e) => setNewDueAt(e.target.value)}
+        className="border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-black"
+      />
+      <button
+        onClick={saveDueDate}
+        disabled={savingDue}
+        className="bg-black text-white px-2 py-1 rounded-lg text-xs disabled:opacity-50"
+      >
+        {savingDue ? 'Saving...' : 'Save'}
+      </button>
+      <button
+        onClick={() => setEditingDue(false)}
+        className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs"
+      >
+        Cancel
+      </button>
+    </div>
+  ) : (
+    <>
+      {assignment.due_at && (
+        <span className="text-xs text-gray-400">
+          Due: {formatDateTime(assignment.due_at)}
+        </span>
+      )}
+      {overdue && (
+        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
+          Past Due
+        </span>
+      )}
+      {user?.role === 'lecturer' && (
+        <button
+          onClick={() => setEditingDue(true)}
+          className="text-xs text-gray-400 hover:text-black transition"
+        >
+          Edit due date
+        </button>
+      )}
+    </>
+  )}
+</div>
         </div>
 
         {/* Student View */}
@@ -150,11 +227,18 @@ export default function AssignmentPage() {
               {submission ? 'Your Submission' : 'Submit Assignment'}
             </h2>
 
-            {/* Show grade if graded */}
+            {submission?.is_late && (
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
+                <span className="text-orange-500">⚠️</span>
+                <p className="text-sm text-orange-600 font-medium">Submitted late</p>
+              </div>
+            )}
+
             {submission?.status === 'graded' && (
               <div className="mb-4 p-4 bg-green-50 rounded-xl">
                 <p className="text-sm font-medium text-green-700">
                   Grade: {submission.grade}/100
+                  {submission.is_late && <span className="ml-2 text-xs text-orange-500">(Late submission)</span>}
                 </p>
                 {submission.feedback && (
                   <p className="text-sm text-green-600 mt-1">{submission.feedback}</p>
@@ -163,15 +247,26 @@ export default function AssignmentPage() {
             )}
 
             {submission && (
-              <div className="mb-4 flex items-center gap-2">
+              <div className="mb-4 flex items-center gap-2 flex-wrap">
                 <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(submission.status)}`}>
                   {submission.status}
                 </span>
-                {submission.submitted_at && (
-                  <span className="text-xs text-gray-400">
-                    Submitted {new Date(submission.submitted_at).toLocaleString()}
+                {submission.is_late && (
+                  <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
+                    Late
                   </span>
                 )}
+                {submission.submitted_at && (
+                  <span className="text-xs text-gray-400">
+                    Submitted {formatDateTime(submission.submitted_at)}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {overdue && !submission && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-sm text-red-600">⚠️ This assignment is past due. Your submission will be marked as late.</p>
               </div>
             )}
 
@@ -197,11 +292,7 @@ export default function AssignmentPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 />
                 {submission?.file_url && !file && (
-                  <a
-                    href={submission.file_url ?? '#'}
-                    target="_blank"
-                    className="text-xs text-blue-500 hover:underline mt-1 block"
-                  >
+                  <a href={submission.file_url} target="_blank" className="text-xs text-blue-500 hover:underline mt-1 block">
                     View current attachment
                   </a>
                 )}
@@ -220,9 +311,14 @@ export default function AssignmentPage() {
         {/* Lecturer View */}
         {user?.role === 'lecturer' && (
           <div>
-            <h2 className="font-semibold mb-4">
-              Submissions ({submissions.length})
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold">Submissions ({submissions.length})</h2>
+              {submissions.filter(s => s.is_late).length > 0 && (
+                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
+                  {submissions.filter(s => s.is_late).length} late
+                </span>
+              )}
+            </div>
             {submissions.length === 0 ? (
               <p className="text-gray-400 text-sm">No submissions yet.</p>
             ) : (
@@ -234,25 +330,33 @@ export default function AssignmentPage() {
                         <p className="font-medium text-sm">{sub.student?.name}</p>
                         <p className="text-xs text-gray-400">{sub.student?.email}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         {sub.status === 'graded' && (
                           <span className="text-sm font-bold">{sub.grade}/100</span>
                         )}
                         <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(sub.status)}`}>
                           {sub.status}
                         </span>
+                        {sub.is_late && (
+                          <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
+                            Late
+                          </span>
+                        )}
                       </div>
                     </div>
+
+                    {sub.submitted_at && (
+                      <p className="text-xs text-gray-400 mb-3">
+                        Submitted {formatDateTime(sub.submitted_at)}
+                      </p>
+                    )}
 
                     {sub.content && (
                       <p className="text-sm text-gray-600 mb-3 whitespace-pre-wrap">{sub.content}</p>
                     )}
+
                     {sub.file_url && (
-                      <a
-                        href={sub.file_url}
-                        target="_blank"
-                        className="text-xs text-blue-500 hover:underline block mb-3"
-                      >
+                      <a href={sub.file_url} target="_blank" className="text-xs text-blue-500 hover:underline block mb-3">
                         View attachment
                       </a>
                     )}
@@ -263,18 +367,16 @@ export default function AssignmentPage() {
 
                     {grading === sub.id ? (
                       <div className="space-y-3 mt-3 pt-3 border-t">
-                        <div className="flex gap-3">
-                          <div className="flex-1">
-                            <label className="block text-xs font-medium mb-1">Grade (0-100)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={gradeForm.grade}
-                              onChange={(e) => setGradeForm({ ...gradeForm, grade: e.target.value })}
-                              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                            />
-                          </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Grade (0-100)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={gradeForm.grade}
+                            onChange={(e) => setGradeForm({ ...gradeForm, grade: e.target.value })}
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                          />
                         </div>
                         <div>
                           <label className="block text-xs font-medium mb-1">Feedback</label>

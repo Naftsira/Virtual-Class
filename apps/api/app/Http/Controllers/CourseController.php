@@ -13,7 +13,7 @@ class CourseController extends Controller
     {
         $sessionIds = ClassSession::where('course_id', $courseId)->pluck('id')->toArray();
         if (!empty($sessionIds)) {
-            Http::post('http://localhost:3001/internal/course/' . $courseId . '/end', [
+            Http::post('http://localhost:3002/internal/course/' . $courseId . '/end', [
                 'sessionIds' => $sessionIds,
             ]);
         }
@@ -37,13 +37,11 @@ class CourseController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'code' => 'required|string|unique:courses',
             'name' => 'required|string',
             'description' => 'nullable|string',
         ]);
 
         $course = Course::create([
-            'code' => $request->code,
             'name' => $request->name,
             'description' => $request->description,
             'lecturer_id' => $request->user()->id,

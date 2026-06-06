@@ -27,7 +27,12 @@ export function useAssignments(courseId: string) {
     due_at?: string;
     session_id?: string;
   }) => {
-    const res = await api.post(`/courses/${courseId}/assignments`, data);
+    // Konversi datetime-local ke ISO format yang benar
+    const payload = {
+      ...data,
+      due_at: data.due_at ? new Date(data.due_at).toISOString() : undefined,
+    };
+    const res = await api.post(`/courses/${courseId}/assignments`, payload);
     setAssignments((prev) => [res.data, ...prev]);
     return res.data;
   };
