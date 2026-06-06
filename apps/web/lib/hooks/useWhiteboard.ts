@@ -13,8 +13,8 @@ function makeCircleCursor(size: number): string {
 
 export function useWhiteboard(
   sessionId: string,
-  canvasRef: React.RefObject<HTMLCanvasElement>,
-  containerRef: React.RefObject<HTMLDivElement>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  containerRef: React.RefObject<HTMLDivElement | null>
 ) {
   const fabricRef = useRef<any>(null);
   const initRef = useRef(false);
@@ -155,7 +155,7 @@ export function useWhiteboard(
         if (existing) canvas.remove(existing);
         Path.fromObject({
           type: 'path',
-          path: d,
+          path: d as any,
           stroke: data.color,
           strokeWidth: data.width,
           fill: null,
