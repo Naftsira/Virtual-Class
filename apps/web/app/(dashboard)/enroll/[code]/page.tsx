@@ -9,7 +9,9 @@ import Link from 'next/link';
 export default function EnrollCodePage() {
   const { code } = useParams<{ code: string }>();
   const { user, loading: authLoading } = useAuth();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'not_student'>('loading');
+  const [status, setStatus] = useState<
+    'loading' | 'success' | 'error' | 'not_student'
+  >('loading');
   const [message, setMessage] = useState('');
   const [courseName, setCourseName] = useState('');
   const router = useRouter();
@@ -42,67 +44,149 @@ export default function EnrollCodePage() {
     enroll();
   }, [user, authLoading, code, router]);
 
-  if (status === 'loading') return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Joining course...</p>
-      </div>
-    </div>
-  );
+  const normalizedCode = code?.toUpperCase();
 
-  if (status === 'not_student') return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl border p-8 max-w-sm w-full text-center">
-        <div className="text-4xl mb-4">🚫</div>
-        <h1 className="text-xl font-bold mb-2">Access Denied</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          Only students can enroll in courses. You are logged in as a <span className="font-medium">lecturer</span>.
-        </p>
-        <Link
-          href="/dashboard"
-          className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition inline-block"
-        >
-          Go to Dashboard
-        </Link>
-      </div>
-    </div>
-  );
+  if (status === 'loading') {
+    return (
+      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
+          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#f3f3f3]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d6d4d3] border-t-black" />
+            </div>
 
-  if (status === 'success') return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl border p-8 max-w-sm w-full text-center">
-        <div className="text-4xl mb-4">🎉</div>
-        <h1 className="text-xl font-bold mb-2">Enrolled!</h1>
-        <p className="text-gray-500 text-sm mb-2">
-          You have successfully joined <span className="font-medium">{courseName}</span>.
-        </p>
-        <p className="text-xs text-gray-400">Redirecting to courses...</p>
-      </div>
-    </div>
-  );
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
+              Enrollment Gateway
+            </p>
+
+            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
+              Joining course...
+            </h1>
+
+            <p className="mx-auto max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
+              Lectra is validating code{' '}
+              <span className="font-mono font-black tracking-widest text-black">
+                {normalizedCode}
+              </span>{' '}
+              and attaching the course to your workspace.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (status === 'not_student') {
+    return (
+      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
+          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffdad6] text-[#410002]">
+              <span className="material-symbols-outlined text-3xl">
+                block
+              </span>
+            </div>
+
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#ba1a1a]">
+              Access Denied
+            </p>
+
+            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
+              Student access only.
+            </h1>
+
+            <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
+              Only students can enroll in courses. You are currently signed in
+              as a{' '}
+              <span className="font-bold text-black capitalize">
+                {user?.role}
+              </span>
+              .
+            </p>
+
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center gap-2 bg-black px-5 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#3b3b3b]"
+            >
+              Go to Dashboard
+              <span>→</span>
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (status === 'success') {
+    return (
+      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
+          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#e2e2e2] text-black">
+              <span className="material-symbols-outlined text-3xl">
+                check
+              </span>
+            </div>
+
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
+              Enrollment Complete
+            </p>
+
+            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
+              Course joined.
+            </h1>
+
+            <p className="mx-auto mb-4 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
+              You have successfully joined{' '}
+              <span className="font-bold text-black">{courseName}</span>.
+            </p>
+
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#acabab]">
+              Redirecting to courses...
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl border p-8 max-w-sm w-full text-center">
-        <div className="text-4xl mb-4">❌</div>
-        <h1 className="text-xl font-bold mb-2">Failed to Enroll</h1>
-        <p className="text-gray-500 text-sm mb-6">{message}</p>
-        <div className="flex gap-3 justify-center">
-          <Link
-            href="/enroll"
-            className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition"
-          >
-            Try Again
-          </Link>
-          <Link
-            href="/dashboard"
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition"
-          >
-            Dashboard
-          </Link>
+    <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
+      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
+        <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffdad6] text-[#410002]">
+            <span className="material-symbols-outlined text-3xl">close</span>
+          </div>
+
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#ba1a1a]">
+            Enrollment Failed
+          </p>
+
+          <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
+            Could not join course.
+          </h1>
+
+          <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
+            {message}
+          </p>
+
+          <div className="flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/enroll"
+              className="inline-flex items-center justify-center bg-black px-5 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#3b3b3b]"
+            >
+              Try Again
+            </Link>
+
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center bg-[#f3f3f3] px-5 py-3 text-xs font-bold uppercase tracking-widest text-[#474747] transition-colors hover:bg-[#e2e2e2] hover:text-black"
+            >
+              Dashboard
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

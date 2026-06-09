@@ -46,3 +46,7 @@ export function disconnectAll() {
   whiteboardSocket?.disconnect();
   whiteboardSocket = null;
 }
+
+export function disconnectParticipants() {
+  // imported from useParticipants — handled separately
+}

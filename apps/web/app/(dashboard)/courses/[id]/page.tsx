@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import { useAssignments } from '@/lib/hooks/useAssignments';
 import api from '@/lib/axios';
@@ -28,28 +28,92 @@ export default function CourseDetailPage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gateChecked, setGateChecked] = useState(false);
   const [activeTab, setActiveTab] = useState<'sessions' | 'assignments'>('sessions');
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [showAssignmentForm, setShowAssignmentForm] = useState(false);
   const [sessionForm, setSessionForm] = useState({ title: '', description: '', scheduled_at: '' });
   const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', due_at: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [bannedSessions, setBannedSessions] = useState<Set<string>>(new Set());
   const { assignments, createAssignment, deleteAssignment } = useAssignments(id);
   const router = useRouter();
+  const pathname = usePathname();
 
-  useEffect(() => {
-    if (authLoading || !user) return;
+// Gate checker untuk halaman /courses/[id]
+useEffect(() => {
+  if (!id) return;
 
-    Promise.all([
-      api.get(`/courses/${id}`),
-      api.get(`/courses/${id}/sessions`),
-    ]).then(([courseRes, sessionsRes]) => {
+  setGateChecked(false);
+
+  const gatePassed = sessionStorage.getItem(`gate_passed_course_${id}`);
+
+  if (!gatePassed) {
+    sessionStorage.setItem('gate_type', 'course');
+    sessionStorage.setItem('gate_access_id', id);
+    sessionStorage.setItem('gate_destination', pathname);
+
+    router.replace('/gate');
+    return;
+  }
+
+  setGateChecked(true);
+}, [id, pathname, router]);
+  
+useEffect(() => {
+  if (authLoading || !user || !gateChecked || !id) return;
+
+  let cancelled = false;
+
+  const fetchCourseDetail = async () => {
+    setLoading(true);
+
+    try {
+      const [courseRes, sessionsRes] = await Promise.all([
+        api.get(`/courses/${id}`),
+        api.get(`/courses/${id}/sessions`),
+      ]);
+
+      if (cancelled) return;
+
       setCourse(courseRes.data);
       setSessions(sessionsRes.data);
-    }).catch((err) => {
-      if (err.response?.status === 404) router.push('/courses');
-    }).finally(() => setLoading(false));
-  }, [id, user, authLoading, router]);
+
+      if (user.role === 'student') {
+        const banChecks = await Promise.all(
+          sessionsRes.data.map(async (s: any) => {
+            try {
+              const res = await api.get(`/sessions/${s.id}/ban-status`);
+              return res.data.banned ? s.id : null;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (!cancelled) {
+          setBannedSessions(new Set(banChecks.filter(Boolean)));
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch course detail:', err);
+
+      if (err.response?.status === 404) {
+        router.push('/courses');
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false);
+      }
+    }
+  };
+
+  fetchCourseDetail();
+
+  return () => {
+    cancelled = true;
+  };
+}, [id, user, authLoading, gateChecked, router]);
 
   const handleSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +156,7 @@ export default function CourseDetailPage() {
     return 'bg-yellow-100 text-yellow-700';
   };
 
-  if (authLoading || loading) return (
+  if (authLoading || !gateChecked || loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <p className="text-gray-400 text-sm">Loading...</p>
     </div>
@@ -220,9 +284,14 @@ export default function CourseDetailPage() {
                       </p>
                     </Link>
                     <div className="flex items-center gap-3 ml-4">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
-                        {session.status}
-                      </span>
+  {bannedSessions.has(session.id) && (
+    <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full font-medium">
+      🔨 Banned
+    </span>
+  )}
+  <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(session.status)}`}>
+    {session.status}
+  </span>
                       {user?.role === 'lecturer' && (
                         <button
                           onClick={() => handleDeleteSession(session.id)}

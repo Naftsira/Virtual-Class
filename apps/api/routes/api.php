@@ -43,3 +43,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('courses/{course}/unenroll', [EnrollmentController::class, 'unenroll']);
     Route::get('courses/{course}/students', [EnrollmentController::class, 'students']);
 });
+
+Route::middleware('auth:sanctum')->get('sessions/{id}/ban-status', function($id, \Illuminate\Http\Request $request) {
+    // Ban check via Express MongoDB
+    $response = \Illuminate\Support\Facades\Http::get('http://localhost:3001/internal/ban-status', [
+        'sessionId' => $id,
+        'studentId' => $request->user()->id,
+    ]);
+    return response()->json($response->json());
+});

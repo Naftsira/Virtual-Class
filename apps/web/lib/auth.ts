@@ -1,6 +1,7 @@
 import api from './axios';
 import Cookies from 'js-cookie';
 import { disconnectAll } from './socket';
+import { clearGateStorage } from '@/lib/session/clearGateStorage';
 
 export interface User {
   id: string;
@@ -34,6 +35,7 @@ export async function logout() {
   await api.post('/auth/logout');
   Cookies.remove('token');
   Cookies.remove('user');
+  clearGateStorage();
   disconnectAll();
 }
 

@@ -14,7 +14,8 @@ function makeCircleCursor(size: number): string {
 export function useWhiteboard(
   sessionId: string,
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
-  containerRef: React.RefObject<HTMLDivElement | null>
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  canDraw: boolean = false
 ) {
   const fabricRef = useRef<any>(null);
   const initRef = useRef(false);
@@ -22,7 +23,12 @@ export function useWhiteboard(
   const brushSizeRef = useRef(3);
   const brushColorRef = useRef('#000000');
   const remotePathsRef = useRef<Map<string, any>>(new Map());
-
+  useEffect(() => {
+  if (!fabricRef.current) return;
+  fabricRef.current.isDrawingMode = canDraw;
+  const upper = containerRef.current?.querySelector('canvas.upper-canvas') as HTMLElement;
+  if (upper) upper.style.pointerEvents = canDraw ? 'auto' : 'none';
+}, [canDraw]);
   const getUpperCanvas = (): HTMLCanvasElement | null => {
     return containerRef.current?.querySelector('canvas.upper-canvas') || null;
   };
@@ -58,7 +64,7 @@ export function useWhiteboard(
     import('fabric').then(({ Canvas, Path, PencilBrush }) => {
       // Canvas size = virtual size * scale
       const canvas = new Canvas(canvasRef.current!, {
-        isDrawingMode: true,
+        isDrawingMode: canDraw,
         width: CANVAS_WIDTH * scale,
         height: CANVAS_HEIGHT * scale,
         backgroundColor: '#ffffff',

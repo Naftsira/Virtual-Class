@@ -15,6 +15,20 @@ async function sessionExists(sessionId: string, token: string): Promise<boolean>
   }
 }
 
+async function verifyLecturerOwnership(sessionId: string, userId: string, token: string): Promise<boolean> {
+  try {
+    const sessionRes = await axios.get(`${API_URL}/sessions/${sessionId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    const courseRes = await axios.get(`${API_URL}/courses/${sessionRes.data.course_id}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    });
+    return courseRes.data.lecturer_id === userId;
+  } catch {
+    return false;
+  }
+}
+
 export function registerChatHandlers(nsp: Namespace, socket: Socket) {
   const user = socket.data.user;
   const token = socket.handshake.auth?.token;
@@ -25,6 +39,15 @@ export function registerChatHandlers(nsp: Namespace, socket: Socket) {
     if (!exists) {
       socket.emit('session:ended');
       return;
+    }
+
+    // Verify lecturer ownership
+    if (user.role === 'lecturer') {
+      const isOwner = await verifyLecturerOwnership(sessionId, user.id, token);
+      if (!isOwner) {
+        socket.emit('session:unauthorized', 'You do not own this course.');
+        return;
+      }
     }
 
     activeSessionIds.add(sessionId);
@@ -43,7 +66,6 @@ export function registerChatHandlers(nsp: Namespace, socket: Socket) {
   });
 
   socket.on('chat:message', async (data: { sessionId: string; content: string }) => {
-    // Cek dari Set — tidak hit API
     if (!activeSessionIds.has(data.sessionId)) {
       socket.emit('session:ended');
       return;
