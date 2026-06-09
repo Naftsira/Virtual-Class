@@ -227,7 +227,7 @@ export default function RegisterPage() {
       </div>
 
       <div className="mt-12 flex items-center justify-between text-[9px] font-bold uppercase tracking-widest text-black/30 md:mt-16">
-        <span>v2.0.4 &quot;Linear&quot;</span>
+        <span>Made with &hearts; by <Link href="https://instagram.com/naftalists" target='blank'>@naftalists</Link></span>
 
         <div className="flex gap-4">
           <a href="#" className="transition-colors hover:text-black">

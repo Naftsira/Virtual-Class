@@ -17,7 +17,7 @@ export default function AuthVisualPanel() {
 
         <div className="relative z-10">
           <span className="mb-3 block text-[10px] font-bold uppercase tracking-[0.35em] text-[#e2e2e2]">
-            Institutional Standard
+            Think, Draw, Learn
           </span>
 
           <h1 className="text-4xl font-black leading-none tracking-tighter">
@@ -41,7 +41,7 @@ export default function AuthVisualPanel() {
         <div className="relative z-10 w-full max-w-xl">
           <div className="mb-12">
             <span className="mb-4 block text-xs font-bold uppercase tracking-[0.4em] text-[#e2e2e2]">
-              Institutional Standard
+              Think, Draw, Learn
             </span>
 
             <h1 className="mb-6 text-6xl font-black leading-none tracking-tighter text-white lg:text-8xl">
@@ -77,7 +77,7 @@ export default function AuthVisualPanel() {
 
         <div className="absolute bottom-12 right-12 z-10 flex items-center gap-4 text-white/40">
           <span className="text-[10px] font-medium uppercase tracking-widest">
-            Session ID: LCT-2941-X
+            <p>&copy; 2026 Lectra. All rights reserved.</p>
           </span>
           <div className="h-px w-12 bg-white/20" />
         </div>
