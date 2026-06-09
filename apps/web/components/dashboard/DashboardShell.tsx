@@ -35,10 +35,11 @@ export default function DashboardShell({
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/login');
-    }
-  }, [loading, user, router]);
+  if (!loading && !user) {
+    sessionStorage.setItem('post_login_redirect', pathname);
+    router.replace('/login');
+  }
+}, [loading, user, router, pathname]);
 
   const handleLogout = () => {
     logout();

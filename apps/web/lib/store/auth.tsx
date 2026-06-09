@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await logoutFn();
     setUser(null);
     router.push('/login');
+    router.refresh();
   };
 
   return (

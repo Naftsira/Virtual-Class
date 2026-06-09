@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
@@ -24,8 +24,14 @@ interface Submission {
   feedback: string | null;
   submitted_at: string | null;
   is_late: boolean;
-  student?: { id: string; name: string; email: string };
+  student?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
+
+type StatusTone = 'neutral' | 'submitted' | 'graded' | 'late' | 'danger';
 
 function formatDateTime(dateStr: string) {
   return new Date(dateStr).toLocaleString('en-US', {
@@ -39,71 +45,185 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+function toDatetimeLocalValue(dateStr: string | null) {
+  if (!dateStr) return '';
+
+  const date = new Date(dateStr);
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60 * 1000);
+
+  return localDate.toISOString().slice(0, 16);
+}
+
 function isPastDue(dueAt: string) {
   return new Date() > new Date(dueAt);
 }
 
+function StatusPill({
+  children,
+  tone = 'neutral',
+}: {
+  children: React.ReactNode;
+  tone?: StatusTone;
+}) {
+  const toneClass: Record<StatusTone, string> = {
+    neutral: 'bg-[#eeeeee] text-[#5e5e5e]',
+    submitted: 'bg-[#e9edf3] text-[#303946]',
+    graded: 'bg-[#e8f0ea] text-[#2f4a37]',
+    late: 'bg-[#f3ece5] text-[#7a4a20]',
+    danger: 'bg-[#f2e8e8] text-[#7a2929]',
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${toneClass[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Panel({
+  children,
+  className = '',
+  tone = 'default',
+}: {
+  children: React.ReactNode;
+  className?: string;
+  tone?: 'default' | 'low' | 'inverse';
+}) {
+  const toneClass = {
+    default: 'bg-white',
+    low: 'bg-[#f3f3f3]',
+    inverse: 'bg-black text-white',
+  };
+
+  return (
+    <section className={`${toneClass[tone]} p-6 md:p-8 ${className}`}>
+      {children}
+    </section>
+  );
+}
+
 export default function AssignmentPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
   const [grading, setGrading] = useState<string | null>(null);
+  const [gradeForm, setGradeForm] = useState({
+    grade: '',
+    feedback: '',
+  });
+
   const [editingDue, setEditingDue] = useState(false);
-  const [newDueAt, setNewDueAt] = useState("");
+  const [newDueAt, setNewDueAt] = useState('');
   const [savingDue, setSavingDue] = useState(false);
-  const [gradeForm, setGradeForm] = useState<{ grade: string; feedback: string }>({ grade: '', feedback: '' });
+
   const fileRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+
+    if (!id) return;
+
+    let cancelled = false;
 
     const fetchData = async () => {
+      setLoading(true);
+
       try {
         const assignmentRes = await api.get(`/assignments/${id}`);
+
+        if (cancelled) return;
+
         setAssignment(assignmentRes.data);
+        setNewDueAt(toDatetimeLocalValue(assignmentRes.data.due_at));
 
         if (user.role === 'student') {
           const subRes = await api.get(`/assignments/${id}/submissions/my`);
+
+          if (cancelled) return;
+
           if (subRes.data) {
             setSubmission(subRes.data);
             setContent(subRes.data.content || '');
           }
-        } else {
+        }
+
+        if (user.role === 'lecturer') {
           const subsRes = await api.get(`/assignments/${id}/submissions`);
+
+          if (cancelled) return;
+
           setSubmissions(subsRes.data);
         }
-      } catch {
+      } catch (err) {
+        console.error('Failed to load assignment:', err);
         router.push('/courses');
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!content.trim() && !file && !submission?.file_url) {
+      alert('Write an answer or attach a file first.');
+      return;
+    }
+
     setSubmitting(true);
+
     try {
       const formData = new FormData();
-      if (content) formData.append('content', content);
-      if (file) formData.append('file', file);
+
+      if (content.trim()) {
+        formData.append('content', content.trim());
+      }
+
+      if (file) {
+        formData.append('file', file);
+      }
 
       const res = await api.post(`/assignments/${id}/submit`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
+
       setSubmission(res.data);
       setFile(null);
-      if (fileRef.current) fileRef.current.value = '';
-    } catch {
+
+      if (fileRef.current) {
+        fileRef.current.value = '';
+      }
+    } catch (err) {
+      console.error('Failed to submit assignment:', err);
       alert('Failed to submit.');
     } finally {
       setSubmitting(false);
@@ -111,312 +231,634 @@ export default function AssignmentPage() {
   };
 
   const handleGrade = async (submissionId: string) => {
+    const parsedGrade = Number(gradeForm.grade);
+
+    if (Number.isNaN(parsedGrade) || parsedGrade < 0 || parsedGrade > 100) {
+      alert('Grade must be a number between 0 and 100.');
+      return;
+    }
+
     try {
-      const res = await api.post(`/assignments/${id}/submissions/${submissionId}/grade`, {
-        grade: parseFloat(gradeForm.grade),
-        feedback: gradeForm.feedback,
-      });
-      setSubmissions((prev) => prev.map((s) => s.id === submissionId ? res.data : s));
+      const res = await api.post(
+        `/assignments/${id}/submissions/${submissionId}/grade`,
+        {
+          grade: parsedGrade,
+          feedback: gradeForm.feedback,
+        }
+      );
+
+      setSubmissions((prev) =>
+        prev.map((s) => (s.id === submissionId ? res.data : s))
+      );
+
       setGrading(null);
-      setGradeForm({ grade: '', feedback: '' });
-    } catch {
+      setGradeForm({
+        grade: '',
+        feedback: '',
+      });
+    } catch (err) {
+      console.error('Failed to grade submission:', err);
       alert('Failed to grade.');
     }
   };
 
   const saveDueDate = async () => {
+    if (!assignment) return;
+
+    if (!newDueAt) {
+      alert('Choose a due date first.');
+      return;
+    }
+
     setSavingDue(true);
+
     try {
-      const res = await api.put(`/courses/${assignment!.course_id}/assignments/${id}`, {
-        due_at: new Date(newDueAt).toISOString(),
-      });
+      const res = await api.put(
+        `/courses/${assignment.course_id}/assignments/${id}`,
+        {
+          due_at: new Date(newDueAt).toISOString(),
+        }
+      );
+
       setAssignment(res.data);
+      setNewDueAt(toDatetimeLocalValue(res.data.due_at));
       setEditingDue(false);
-    } catch {
-      alert("Failed to update due date.");
+    } catch (err) {
+      console.error('Failed to update due date:', err);
+      alert('Failed to update due date.');
     } finally {
       setSavingDue(false);
     }
   };
 
-  const statusColor = (status: string) => {
-    if (status === 'graded') return 'bg-green-100 text-green-700';
-    if (status === 'submitted') return 'bg-blue-100 text-blue-700';
-    return 'bg-gray-100 text-gray-500';
+  const getStatusTone = (status: Submission['status']): StatusTone => {
+    if (status === 'graded') return 'graded';
+    if (status === 'submitted') return 'submitted';
+    return 'neutral';
   };
 
-  if (authLoading || loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-400 text-sm">Loading...</p>
-    </div>
-  );
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-[#eeeeee] flex items-center justify-center">
+        <p className="text-sm font-medium text-[#777777]">
+          Loading assignment...
+        </p>
+      </div>
+    );
+  }
 
-  if (!assignment) return null;
+  if (!user) {
+    return null;
+  }
+
+  if (!assignment) {
+    return null;
+  }
 
   const overdue = assignment.due_at ? isPastDue(assignment.due_at) : false;
+  const isLecturer = user.role === 'lecturer';
+  const isStudent = user.role === 'student';
+  const lateCount = submissions.filter((s) => s.is_late).length;
+  const gradedCount = submissions.filter((s) => s.status === 'graded').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white border-b px-6 py-4 flex items-center gap-3">
-        <Link href="/dashboard" className="font-bold tracking-tight">LECTRA</Link>
-        <span className="text-gray-300">/</span>
-        <Link href="/courses" className="text-sm text-gray-500 hover:text-black">Courses</Link>
-        <span className="text-gray-300">/</span>
-        <span className="text-sm font-medium">{assignment.title}</span>
+    <div className="min-h-screen bg-[#eeeeee] text-black">
+      <nav className="px-6 py-5">
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <Link href="/dashboard" className="text-sm font-black tracking-tight">
+            LECTRA
+          </Link>
+
+          <span className="text-[#b0b0b0]">/</span>
+
+          <Link
+            href="/courses"
+            className="text-xs font-bold uppercase tracking-[0.22em] text-[#777777] transition hover:text-black"
+          >
+            Courses
+          </Link>
+
+          <span className="text-[#b0b0b0]">/</span>
+
+          <span className="truncate text-xs font-bold uppercase tracking-[0.22em] text-black">
+            Assignment
+          </span>
+        </div>
       </nav>
 
-      <main className="max-w-3xl mx-auto px-6 py-10">
-        {/* Assignment Info */}
-        <div className="bg-white rounded-2xl border p-6 mb-6">
-          <h1 className="text-2xl font-bold mb-2">{assignment.title}</h1>
-          {assignment.description && (
-            <p className="text-gray-600 text-sm mb-4">{assignment.description}</p>
-          )}
-          <div className="flex items-center gap-2 flex-wrap mt-2">
-  {editingDue ? (
-    <div className="flex items-center gap-2">
-      <input
-        type="datetime-local"
-        defaultValue={assignment.due_at ? new Date(assignment.due_at).toISOString().slice(0, 16) : ''}
-        onChange={(e) => setNewDueAt(e.target.value)}
-        className="border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-black"
-      />
+      <main className="mx-auto max-w-6xl px-6 pb-12">
+        <div className="grid gap-4 lg:grid-cols-12">
+          <Panel tone="inverse" className="lg:col-span-8">
+            <p className="mb-5 text-[10px] font-black uppercase tracking-[0.34em] text-white/45">
+              Assignment Brief
+            </p>
+
+            <h1 className="max-w-3xl text-4xl font-black leading-[0.98] tracking-[-0.055em] text-white md:text-6xl">
+              {assignment.title}
+            </h1>
+
+            {assignment.description && (
+              <p className="mt-6 max-w-2xl whitespace-pre-wrap text-sm font-medium leading-7 text-white/60">
+                {assignment.description}
+              </p>
+            )}
+
+            <div className="mt-10 flex flex-wrap gap-2">
+              {assignment.due_at ? (
+                <StatusPill tone={overdue ? 'danger' : 'neutral'}>
+                  Due {formatDateTime(assignment.due_at)}
+                </StatusPill>
+              ) : (
+                <StatusPill>No due date</StatusPill>
+              )}
+
+              {overdue && <StatusPill tone="danger">Past due</StatusPill>}
+
+              <StatusPill tone={isLecturer ? 'submitted' : 'neutral'}>
+                {user.role}
+              </StatusPill>
+            </div>
+          </Panel>
+
+          <Panel tone="low" className="lg:col-span-4">
+            <p className="mb-5 text-[10px] font-black uppercase tracking-[0.34em] text-[#777777]">
+              Assignment State
+            </p>
+
+            {isStudent && (
+              <div className="space-y-3">
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Status
+                  </p>
+                  <p className="mt-2 text-2xl font-black tracking-[-0.04em] capitalize">
+                    {submission?.status ?? 'Not submitted'}
+                  </p>
+                </div>
+
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Grade
+                  </p>
+                  <p className="mt-2 text-2xl font-black tracking-[-0.04em]">
+                    {submission?.grade != null ? `${submission.grade}/100` : '—'}
+                  </p>
+                </div>
+
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Submitted
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-[#5e5e5e]">
+                    {submission?.submitted_at
+                      ? formatDateTime(submission.submitted_at)
+                      : 'No submission yet'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isLecturer && (
+              <div className="space-y-3">
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Submissions
+                  </p>
+                  <p className="mt-2 text-3xl font-black tracking-[-0.05em]">
+                    {submissions.length}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                      Graded
+                    </p>
+                    <p className="mt-2 text-2xl font-black">{gradedCount}</p>
+                  </div>
+
+                  <div className="bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                      Late
+                    </p>
+                    <p className="mt-2 text-2xl font-black">{lateCount}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white px-4 py-4">
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Due Date
+                  </p>
+
+                  {editingDue ? (
+                    <div className="space-y-3">
+                      <input
+                        type="datetime-local"
+                        value={newDueAt}
+                        onChange={(e) => setNewDueAt(e.target.value)}
+                        className="w-full bg-[#f3f3f3] px-3 py-3 text-sm font-medium text-black outline-none"
+                      />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={saveDueDate}
+                          disabled={savingDue}
+                          className="bg-black px-3 py-3 text-xs font-black uppercase tracking-widest text-white disabled:opacity-40"
+                        >
+                          {savingDue ? 'Saving' : 'Save'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingDue(false);
+                            setNewDueAt(toDatetimeLocalValue(assignment.due_at));
+                          }}
+                          className="bg-[#eeeeee] px-3 py-3 text-xs font-black uppercase tracking-widest text-black"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-sm font-bold text-[#5e5e5e]">
+                        {assignment.due_at
+                          ? formatDateTime(assignment.due_at)
+                          : 'No due date'}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingDue(true)}
+                        className="text-xs font-black uppercase tracking-widest text-black underline underline-offset-4"
+                      >
+                        Edit due date
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        {isStudent && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-12">
+            <Panel className="lg:col-span-8">
+              <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                <div>
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.34em] text-[#777777]">
+                    Student Submission
+                  </p>
+
+                  <h2 className="text-3xl font-black tracking-[-0.045em]">
+                    {submission ? 'Revise your work.' : 'Submit your work.'}
+                  </h2>
+
+                  <p className="mt-3 max-w-xl text-sm font-medium leading-7 text-[#5e5e5e]">
+                    Write your response, attach supporting files when needed,
+                    then submit. Updates are allowed while the assignment remains
+                    accessible.
+                  </p>
+                </div>
+
+                {submission && (
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill tone={getStatusTone(submission.status)}>
+                      {submission.status}
+                    </StatusPill>
+
+                    {submission.is_late && (
+                      <StatusPill tone="late">Late</StatusPill>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {overdue && !submission && (
+                <div className="mb-6 bg-[#f2e8e8] px-4 py-4">
+                  <p className="text-sm font-bold text-[#7a2929]">
+                    This assignment is past due. Your submission will be marked
+                    as late.
+                  </p>
+                </div>
+              )}
+
+              {submission?.status === 'graded' && (
+                <div className="mb-6 bg-[#e8f0ea] px-5 py-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#55705c]">
+                    Grade Released
+                  </p>
+
+                  <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-[#2f4a37]">
+                    {submission.grade}/100
+                  </p>
+
+                  {submission.feedback && (
+                    <p className="mt-3 whitespace-pre-wrap text-sm font-medium leading-6 text-[#2f4a37]">
+                      {submission.feedback}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Answer
+                  </label>
+
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    rows={8}
+                    placeholder="Write your answer here..."
+                    className="w-full resize-none bg-[#f3f3f3] px-4 py-4 text-sm font-medium leading-7 text-black outline-none placeholder:text-[#9a9a9a]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Attachment
+                  </label>
+
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="block w-full bg-[#f3f3f3] px-4 py-4 text-sm font-medium text-[#5e5e5e] file:mr-4 file:border-0 file:bg-black file:px-4 file:py-2 file:text-xs file:font-black file:uppercase file:tracking-widest file:text-white"
+                  />
+
+                  <p className="mt-2 text-xs font-medium text-[#777777]">
+                    Optional file attachment, max 10MB.
+                  </p>
+
+                  {submission?.file_url && !file && (
+                    <a
+                      href={submission.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-block text-xs font-black uppercase tracking-widest text-black underline underline-offset-4"
+                    >
+                      View current attachment
+                    </a>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] px-6 py-4 text-xs font-black uppercase tracking-widest text-white transition hover:opacity-90 disabled:opacity-40"
+                >
+                  {submitting
+                    ? 'Submitting'
+                    : submission
+                    ? 'Update Submission'
+                    : 'Submit Assignment'}
+                </button>
+              </form>
+            </Panel>
+
+            <Panel tone="low" className="lg:col-span-4">
+              <p className="mb-5 text-[10px] font-black uppercase tracking-[0.34em] text-[#777777]">
+                Submission Record
+              </p>
+
+              <div className="space-y-3">
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Status
+                  </p>
+                  <p className="mt-2 text-sm font-black capitalize">
+                    {submission?.status ?? 'Not submitted'}
+                  </p>
+                </div>
+
+                <div className="bg-white px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                    Timing
+                  </p>
+                  <p className="mt-2 text-sm font-bold text-[#5e5e5e]">
+                    {submission?.is_late
+                      ? 'Submitted late'
+                      : submission
+                      ? 'Submitted on time'
+                      : overdue
+                      ? 'Past due'
+                      : 'Open'}
+                  </p>
+                </div>
+
+                {submission?.submitted_at && (
+                  <div className="bg-white px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                      Submitted At
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-[#5e5e5e]">
+                      {formatDateTime(submission.submitted_at)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Panel>
+          </div>
+        )}
+
+        {isLecturer && (
+          <div className="mt-4">
+            <Panel>
+              <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                <div>
+                  <p className="mb-3 text-[10px] font-black uppercase tracking-[0.34em] text-[#777777]">
+                    Lecturer Review
+                  </p>
+
+                  <h2 className="text-3xl font-black tracking-[-0.045em]">
+                    Submissions
+                  </h2>
+
+                  <p className="mt-3 max-w-xl text-sm font-medium leading-7 text-[#5e5e5e]">
+                    Review student answers, inspect attachments, and publish
+                    grades with feedback.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill>{submissions.length} total</StatusPill>
+                  {lateCount > 0 && <StatusPill tone="late">{lateCount} late</StatusPill>}
+                </div>
+              </div>
+
+              {submissions.length === 0 ? (
+                <div className="bg-[#f3f3f3] px-6 py-12 text-center">
+                  <p className="text-sm font-bold text-[#777777]">
+                    No submissions yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {submissions.map((sub) => (
+                    <article key={sub.id} className="bg-[#f3f3f3] p-5 md:p-6">
+                      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                        <div>
+                          <p className="text-lg font-black tracking-[-0.03em]">
+                            {sub.student?.name ?? 'Unknown student'}
+                          </p>
+
+                          <p className="mt-1 text-xs font-bold text-[#777777]">
+                            {sub.student?.email ?? 'No email available'}
+                          </p>
+
+                          {sub.submitted_at && (
+                            <p className="mt-3 text-xs font-medium text-[#777777]">
+                              Submitted {formatDateTime(sub.submitted_at)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          {sub.status === 'graded' && (
+                            <StatusPill tone="graded">{sub.grade}/100</StatusPill>
+                          )}
+
+                          <StatusPill tone={getStatusTone(sub.status)}>
+                            {sub.status}
+                          </StatusPill>
+
+                          {sub.is_late && <StatusPill tone="late">Late</StatusPill>}
+                        </div>
+                      </div>
+
+                      {sub.content && (
+                        <div className="mt-5 bg-white px-4 py-4">
+                          <p className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+                            Answer
+                          </p>
+
+                          <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[#3a3a3a]">
+                            {sub.content}
+                          </p>
+                        </div>
+                      )}
+
+<div className="mt-6 flex flex-wrap items-center gap-3">
+  {sub.file_url && (
+    <a
+      href={sub.file_url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-black transition hover:bg-[#e8e8e8]"
+    >
+      View Attachment
+    </a>
+  )}
+
+  {grading !== sub.id && (
+    <button
+      type="button"
+      onClick={() => {
+        setGrading(sub.id);
+        setGradeForm({
+          grade: sub.grade?.toString() || '',
+          feedback: sub.feedback || '',
+        });
+      }}
+      className="inline-flex bg-black px-4 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:opacity-90"
+    >
+      {sub.status === 'graded' ? 'Edit Grade' : 'Grade'}
+    </button>
+  )}
+</div>
+
+{sub.feedback && grading !== sub.id && (
+  <div className="mt-5 bg-white px-4 py-4">
+    <p className="mb-3 text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+      Feedback
+    </p>
+
+    <p className="whitespace-pre-wrap text-sm font-medium leading-7 text-[#5e5e5e]">
+      {sub.feedback}
+    </p>
+  </div>
+)}
+
+{grading === sub.id && (
+  <div className="mt-6 bg-white px-4 py-4">
+    <div className="grid gap-4 md:grid-cols-3">
+      <div>
+        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+          Grade
+        </label>
+
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={gradeForm.grade}
+          onChange={(e) =>
+            setGradeForm({
+              ...gradeForm,
+              grade: e.target.value,
+            })
+          }
+          className="w-full bg-[#f3f3f3] px-4 py-3 text-sm font-bold outline-none"
+          placeholder="0-100"
+        />
+      </div>
+
+      <div className="md:col-span-2">
+        <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.24em] text-[#777777]">
+          Feedback
+        </label>
+
+        <textarea
+          value={gradeForm.feedback}
+          onChange={(e) =>
+            setGradeForm({
+              ...gradeForm,
+              feedback: e.target.value,
+            })
+          }
+          rows={3}
+          className="w-full resize-none bg-[#f3f3f3] px-4 py-3 text-sm font-medium leading-6 outline-none"
+          placeholder="Write feedback..."
+        />
+      </div>
+    </div>
+
+    <div className="mt-4 flex flex-wrap gap-2">
       <button
-        onClick={saveDueDate}
-        disabled={savingDue}
-        className="bg-black text-white px-2 py-1 rounded-lg text-xs disabled:opacity-50"
+        type="button"
+        onClick={() => handleGrade(sub.id)}
+        className="bg-black px-4 py-3 text-xs font-black uppercase tracking-widest text-white"
       >
-        {savingDue ? 'Saving...' : 'Save'}
+        Save Grade
       </button>
+
       <button
-        onClick={() => setEditingDue(false)}
-        className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs"
+        type="button"
+        onClick={() => {
+          setGrading(null);
+          setGradeForm({
+            grade: '',
+            feedback: '',
+          });
+        }}
+        className="bg-[#eeeeee] px-4 py-3 text-xs font-black uppercase tracking-widest text-black"
       >
         Cancel
       </button>
     </div>
-  ) : (
-    <>
-      {assignment.due_at && (
-        <span className="text-xs text-gray-400">
-          Due: {formatDateTime(assignment.due_at)}
-        </span>
-      )}
-      {overdue && (
-        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-medium">
-          Past Due
-        </span>
-      )}
-      {user?.role === 'lecturer' && (
-        <button
-          onClick={() => setEditingDue(true)}
-          className="text-xs text-gray-400 hover:text-black transition"
-        >
-          Edit due date
-        </button>
-      )}
-    </>
-  )}
-</div>
-        </div>
-
-        {/* Student View */}
-        {user?.role === 'student' && (
-          <div className="bg-white rounded-2xl border p-6">
-            <h2 className="font-semibold mb-4">
-              {submission ? 'Your Submission' : 'Submit Assignment'}
-            </h2>
-
-            {submission?.is_late && (
-              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
-                <span className="text-orange-500">⚠️</span>
-                <p className="text-sm text-orange-600 font-medium">Submitted late</p>
-              </div>
-            )}
-
-            {submission?.status === 'graded' && (
-              <div className="mb-4 p-4 bg-green-50 rounded-xl">
-                <p className="text-sm font-medium text-green-700">
-                  Grade: {submission.grade}/100
-                  {submission.is_late && <span className="ml-2 text-xs text-orange-500">(Late submission)</span>}
-                </p>
-                {submission.feedback && (
-                  <p className="text-sm text-green-600 mt-1">{submission.feedback}</p>
-                )}
-              </div>
-            )}
-
-            {submission && (
-              <div className="mb-4 flex items-center gap-2 flex-wrap">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(submission.status)}`}>
-                  {submission.status}
-                </span>
-                {submission.is_late && (
-                  <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
-                    Late
-                  </span>
-                )}
-                {submission.submitted_at && (
-                  <span className="text-xs text-gray-400">
-                    Submitted {formatDateTime(submission.submitted_at)}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {overdue && !submission && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-sm text-red-600">⚠️ This assignment is past due. Your submission will be marked as late.</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Answer</label>
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                  rows={5}
-                  placeholder="Write your answer here..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Attachment <span className="text-gray-400 font-normal">(optional, max 10MB)</span>
-                </label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-                {submission?.file_url && !file && (
-                  <a href={submission.file_url} target="_blank" className="text-xs text-blue-500 hover:underline mt-1 block">
-                    View current attachment
-                  </a>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition"
-              >
-                {submitting ? 'Submitting...' : submission ? 'Update Submission' : 'Submit'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Lecturer View */}
-        {user?.role === 'lecturer' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold">Submissions ({submissions.length})</h2>
-              {submissions.filter(s => s.is_late).length > 0 && (
-                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full">
-                  {submissions.filter(s => s.is_late).length} late
-                </span>
+  </div>
+)}
+              
+                    </article>
+                  ))}
+                </div>
               )}
-            </div>
-            {submissions.length === 0 ? (
-              <p className="text-gray-400 text-sm">No submissions yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {submissions.map((sub) => (
-                  <div key={sub.id} className="bg-white rounded-2xl border p-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="font-medium text-sm">{sub.student?.name}</p>
-                        <p className="text-xs text-gray-400">{sub.student?.email}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        {sub.status === 'graded' && (
-                          <span className="text-sm font-bold">{sub.grade}/100</span>
-                        )}
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${statusColor(sub.status)}`}>
-                          {sub.status}
-                        </span>
-                        {sub.is_late && (
-                          <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
-                            Late
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {sub.submitted_at && (
-                      <p className="text-xs text-gray-400 mb-3">
-                        Submitted {formatDateTime(sub.submitted_at)}
-                      </p>
-                    )}
-
-                    {sub.content && (
-                      <p className="text-sm text-gray-600 mb-3 whitespace-pre-wrap">{sub.content}</p>
-                    )}
-
-                    {sub.file_url && (
-                      <a href={sub.file_url} target="_blank" className="text-xs text-blue-500 hover:underline block mb-3">
-                        View attachment
-                      </a>
-                    )}
-
-                    {sub.feedback && (
-                      <p className="text-xs text-gray-500 italic mb-3">Feedback: {sub.feedback}</p>
-                    )}
-
-                    {grading === sub.id ? (
-                      <div className="space-y-3 mt-3 pt-3 border-t">
-                        <div>
-                          <label className="block text-xs font-medium mb-1">Grade (0-100)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={gradeForm.grade}
-                            onChange={(e) => setGradeForm({ ...gradeForm, grade: e.target.value })}
-                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1">Feedback</label>
-                          <textarea
-                            value={gradeForm.feedback}
-                            onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })}
-                            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                            rows={2}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleGrade(sub.id)}
-                            className="bg-black text-white px-3 py-1.5 rounded-lg text-xs font-medium"
-                          >
-                            Save Grade
-                          </button>
-                          <button
-                            onClick={() => setGrading(null)}
-                            className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-medium"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setGrading(sub.id);
-                          setGradeForm({ grade: sub.grade?.toString() || '', feedback: sub.feedback || '' });
-                        }}
-                        className="text-xs text-gray-500 hover:text-black transition"
-                      >
-                        {sub.status === 'graded' ? 'Edit Grade' : 'Grade'}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            </Panel>
           </div>
         )}
       </main>

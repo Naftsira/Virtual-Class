@@ -1,19 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import PageHeader from '@/components/dashboard/PageHeader';
+import SurfacePanel from '@/components/dashboard/SurfacePanel';
 
-function EnrollForm() {
+export default function EnrollPage() {
   const { user, loading: authLoading } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const handleEnroll = useCallback(
     async (enrollCode: string) => {
@@ -31,7 +32,10 @@ function EnrollForm() {
       try {
         const res = await api.post('/enroll', { code: normalizedCode });
         setSuccess(`Successfully enrolled in ${res.data.course.name}.`);
-        setTimeout(() => router.push('/courses'), 1500);
+
+        setTimeout(() => {
+          router.push('/courses');
+        }, 1500);
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to enroll.');
       } finally {
@@ -41,29 +45,6 @@ function EnrollForm() {
     [router]
   );
 
-  useEffect(() => {
-    if (authLoading) return;
-
-    const codeParam = searchParams.get('code');
-
-    if (!user) {
-      const redirectPath = codeParam
-        ? `/enroll?code=${codeParam.toUpperCase()}`
-        : '/enroll';
-
-      router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
-      return;
-    }
-
-    if (user.role !== 'student') return;
-
-    if (codeParam) {
-      const normalizedCode = codeParam.toUpperCase();
-      setCode(normalizedCode);
-      handleEnroll(normalizedCode);
-    }
-  }, [authLoading, user, router, searchParams, handleEnroll]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await handleEnroll(code);
@@ -71,231 +52,227 @@ function EnrollForm() {
 
   if (authLoading || !user) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-[#f9f9f9] text-[#1a1c1c]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#d6d4d3] border-t-black" />
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
+      <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+        <SurfacePanel tone="lowest" className="w-full max-w-md text-center">
+          <div className="mx-auto mb-5 h-8 w-8 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#777777]">
             Checking Access
           </p>
-        </div>
+        </SurfacePanel>
       </div>
     );
   }
 
   if (user.role !== 'student') {
     return (
-      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
-        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffdad6] text-[#410002]">
-              <span className="material-symbols-outlined text-3xl">
-                block
-              </span>
+      <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+        <div className="grid w-full max-w-5xl gap-4 lg:grid-cols-12">
+          <SurfacePanel tone="inverse" className="lg:col-span-5">
+            <div className="flex min-h-[360px] flex-col justify-between">
+              <div>
+                <div className="mb-8 flex h-16 w-16 items-center justify-center bg-white/10 text-white">
+                  <span className="material-symbols-outlined text-[34px]">
+                    block
+                  </span>
+                </div>
+
+                <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-white/45">
+                  Access Denied
+                </p>
+
+                <h1 className="text-4xl font-black leading-[0.95] tracking-[-0.055em] text-white md:text-5xl">
+                  Student access only.
+                </h1>
+              </div>
+
+              <p className="mt-10 text-sm font-medium leading-7 text-white/60">
+                Course enrollment is restricted to student accounts.
+              </p>
             </div>
+          </SurfacePanel>
 
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#ba1a1a]">
-              Access Denied
-            </p>
+          <SurfacePanel tone="lowest" className="lg:col-span-7">
+            <div className="flex min-h-[360px] flex-col justify-between">
+              <div>
+                <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+                  Current Account
+                </p>
 
-            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
-              Student access only.
-            </h1>
+                <h2 className="max-w-xl text-3xl font-black tracking-[-0.045em] text-black">
+                  You are currently signed in as a{' '}
+                  <span className="capitalize">{user.role}</span>.
+                </h2>
 
-            <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
-              Only students can enroll in courses. You are currently signed in
-              as a{' '}
-              <span className="font-bold text-black capitalize">
-                {user.role}
-              </span>
-              .
-            </p>
+                <p className="mt-5 max-w-xl text-sm font-medium leading-7 text-[#5e5e5e]">
+                  Lecturers manage course spaces directly from the Courses
+                  workspace. Students use this gateway to attach a course to
+                  their account.
+                </p>
+              </div>
 
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 bg-black px-5 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#3b3b3b]"
-            >
-              Go to Dashboard
-              <span>→</span>
-            </Link>
-          </div>
+              <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex justify-center bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] px-5 py-3 text-xs font-black uppercase tracking-widest text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,_#1a1c1c,_#5e5e5e)] active:translate-y-0"
+                >
+                  Dashboard
+                </Link>
+
+                <Link
+                  href="/courses"
+                  className="inline-flex justify-center bg-[#eeeeee] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#e2e2e2] active:translate-y-0"
+                >
+                  Courses
+                </Link>
+              </div>
+            </div>
+          </SurfacePanel>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-[#f9f9f9] text-[#1a1c1c] selection:bg-black selection:text-white">
-      <header className="border-b border-[#e2e2e2] bg-[#f9f9f9]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="text-lg font-black uppercase tracking-tighter text-black"
-            >
-              Lectra
-            </Link>
-            <span className="text-[#c8c6c6]">/</span>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#777777]">
-              Enroll Gateway
-            </span>
-          </div>
-
+    <>
+      <PageHeader
+        eyebrow="Course Access"
+        title="Join your next classroom."
+        description="Enter the enrollment code given by your lecturer. If valid, Lectra will attach the course to your workspace."
+        action={
           <Link
-            href="/dashboard"
-            className="hidden text-[10px] font-bold uppercase tracking-widest text-[#777777] transition-colors hover:text-black sm:block"
+            href="/courses"
+            className="inline-flex bg-[#e2e2e2] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#d6d4d3] active:translate-y-0"
           >
-            Back to Dashboard
+            Course Spaces
           </Link>
-        </div>
-      </header>
+        }
+      />
 
-      <section className="mx-auto grid min-h-[calc(100dvh-4rem)] max-w-6xl grid-cols-1 gap-8 px-6 py-10 lg:grid-cols-12 lg:items-center lg:py-16">
-        <div className="lg:col-span-7">
-          <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.35em] text-[#777777]">
-            Course Access
-          </p>
-
-          <h1 className="mb-5 max-w-3xl text-5xl font-black leading-none tracking-tighter text-black sm:text-6xl lg:text-7xl">
-            Join your next classroom.
-          </h1>
-
-          <p className="max-w-xl text-sm leading-relaxed text-[#5f5e5e] sm:text-base">
-            Enter the enrollment code given by your lecturer. If the code is
-            valid, Lectra will attach the course to your workspace and redirect
-            you to your course list.
-          </p>
-
-          <div className="mt-10 grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="bg-white p-5">
-              <span className="material-symbols-outlined mb-4 text-[#777777]">
-                password
-              </span>
-              <h3 className="mb-1 text-sm font-black text-black">
-                Code Based
-              </h3>
-              <p className="text-xs leading-relaxed text-[#777777]">
-                Access is controlled by lecturer-issued course codes.
-              </p>
-            </div>
-
-            <div className="bg-white p-5">
-              <span className="material-symbols-outlined mb-4 text-[#777777]">
-                verified_user
-              </span>
-              <h3 className="mb-1 text-sm font-black text-black">
-                Student Only
-              </h3>
-              <p className="text-xs leading-relaxed text-[#777777]">
-                Enrollment is restricted to student accounts.
-              </p>
-            </div>
-
-            <div className="bg-white p-5">
-              <span className="material-symbols-outlined mb-4 text-[#777777]">
-                school
-              </span>
-              <h3 className="mb-1 text-sm font-black text-black">
-                Course Ready
-              </h3>
-              <p className="text-xs leading-relaxed text-[#777777]">
-                Successful enrollment sends you straight to courses.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-5">
-          <div className="rounded-xl bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-8">
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
-                Enrollment Form
+      <div className="grid gap-4 lg:grid-cols-12">
+        <SurfacePanel tone="inverse" className="lg:col-span-7">
+          <div className="flex min-h-[440px] flex-col justify-between">
+            <div>
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-white/45">
+                Enrollment Gateway
               </p>
 
-              <h2 className="mb-2 text-3xl font-black tracking-tight text-black">
-                Enter Course Code
+              <h2 className="max-w-2xl text-4xl font-black leading-[0.98] tracking-[-0.055em] text-white md:text-5xl">
+                Attach a course to your learning workspace.
               </h2>
 
-              <p className="text-sm leading-relaxed text-[#5f5e5e]">
-                Use the code exactly as provided. Spaces are ignored and letters
-                are automatically uppercased.
+              <p className="mt-5 max-w-xl text-sm font-medium leading-7 text-white/60">
+                Enrollment codes are issued by lecturers. Once accepted, the
+                course becomes available in your Courses workspace.
               </p>
             </div>
 
-            {error && (
-              <div className="mb-6 border-l-2 border-[#ba1a1a] bg-[#ffdad6] px-4 py-3 text-sm font-medium text-[#410002]">
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-6 border-l-2 border-black bg-[#e2e2e2] px-4 py-3 text-sm font-medium text-black">
-                {success}
-              </div>
-            )}
-
-            {loading && !error && !success && (
-              <div className="mb-6 flex items-center gap-3 border-l-2 border-black bg-[#f3f3f3] px-4 py-3 text-sm font-medium text-black">
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#c8c6c6] border-t-black" />
-                Enrolling...
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-[#474747]">
-                  Course Code
-                </label>
-
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.toUpperCase())}
-                  className="w-full border-0 border-b border-[#777777]/20 bg-[#f3f3f3] px-4 py-4 font-mono text-xl font-black uppercase tracking-[0.25em] text-black placeholder:text-[#acabab] focus:border-black focus:bg-[#e2e2e2] focus:outline-none focus:ring-0"
-                  placeholder="XXXX-XXXX"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="group flex w-full items-center justify-center gap-3 bg-black py-4 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-[#3b3b3b] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? 'Enrolling...' : 'Enroll Course'}
-                <span className="transition-transform group-hover:translate-x-1">
-                  →
+            <div className="mt-10 grid gap-2 sm:grid-cols-3">
+              <div className="bg-white/8 px-4 py-4">
+                <span className="material-symbols-outlined mb-4 block text-[22px] text-white/45">
+                  password
                 </span>
-              </button>
-            </form>
+                <h3 className="text-sm font-black text-white">Code Based</h3>
+                <p className="mt-2 text-xs font-medium leading-5 text-white/45">
+                  Access is controlled by lecturer-issued codes.
+                </p>
+              </div>
 
-            <div className="mt-8 border-t border-[#eeeeee] pt-6">
-              <p className="text-xs leading-relaxed text-[#777777]">
-                No code? Ask your lecturer for the enrollment code. Don&apos;t
-                brute force random codes — that is just wasting time and will
-                make debugging harder.
-              </p>
+              <div className="bg-white/8 px-4 py-4">
+                <span className="material-symbols-outlined mb-4 block text-[22px] text-white/45">
+                  verified_user
+                </span>
+                <h3 className="text-sm font-black text-white">Student Only</h3>
+                <p className="mt-2 text-xs font-medium leading-5 text-white/45">
+                  Enrollment is restricted to student accounts.
+                </p>
+              </div>
+
+              <div className="bg-white/8 px-4 py-4">
+                <span className="material-symbols-outlined mb-4 block text-[22px] text-white/45">
+                  school
+                </span>
+                <h3 className="text-sm font-black text-white">Course Ready</h3>
+                <p className="mt-2 text-xs font-medium leading-5 text-white/45">
+                  Successful access redirects you to courses.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
-    </main>
-  );
-}
+        </SurfacePanel>
 
-export default function EnrollPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-dvh flex items-center justify-center bg-[#f9f9f9] text-[#1a1c1c]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#d6d4d3] border-t-black" />
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
-              Loading Enroll Page
+        <SurfacePanel tone="lowest" className="lg:col-span-5">
+          <div className="mb-8">
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+              Enrollment Form
+            </p>
+
+            <h2 className="text-3xl font-black tracking-[-0.045em] text-black">
+              Enter course code.
+            </h2>
+
+            <p className="mt-3 text-sm font-medium leading-6 text-[#5e5e5e]">
+              Spaces are ignored and letters are automatically uppercased.
             </p>
           </div>
-        </div>
-      }
-    >
-      <EnrollForm />
-    </Suspense>
+
+          {error && (
+            <div className="mb-6 bg-[#ffdad6] px-4 py-3 text-sm font-bold text-[#410002]">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 bg-[#e2e2e2] px-4 py-3 text-sm font-bold text-black">
+              {success}
+            </div>
+          )}
+
+          {loading && !error && !success && (
+            <div className="mb-6 flex items-center gap-3 bg-[#f3f3f3] px-4 py-3 text-sm font-bold text-black">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+              Enrolling...
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-[#474747]">
+                Course Code
+              </label>
+
+              <input
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value.toUpperCase());
+                  setError('');
+                  setSuccess('');
+                }}
+                className="w-full border-0 border-b border-[#777777]/20 bg-[#f3f3f3] px-4 py-4 font-mono text-xl font-black uppercase tracking-[0.25em] text-black placeholder:text-[#acabab] focus:border-black focus:bg-[#e2e2e2] focus:outline-none focus:ring-0"
+                placeholder="XXXX-XXXX"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="group flex w-full items-center justify-center gap-3 bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] py-4 text-sm font-black uppercase tracking-widest text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,_#1a1c1c,_#5e5e5e)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? 'Enrolling...' : 'Enroll Course'}
+              <span className="transition-transform group-hover:translate-x-1">
+                →
+              </span>
+            </button>
+          </form>
+
+          <div className="mt-8 bg-[#f3f3f3] px-4 py-4">
+            <p className="text-xs font-medium leading-6 text-[#777777]">
+              No code? Ask your lecturer for the enrollment code. Do not brute
+              force random codes; it only makes debugging harder.
+            </p>
+          </div>
+        </SurfacePanel>
+      </div>
+    </>
   );
 }

@@ -20,14 +20,18 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const user = await login(email, password);
-      setUser(user);
-      router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+  const user = await login(email, password);
+  setUser(user);
+
+  const redirectPath = sessionStorage.getItem('post_login_redirect');
+  sessionStorage.removeItem('post_login_redirect');
+
+  router.push(redirectPath || '/dashboard');
+} catch (err: any) {
+  setError(err.response?.data?.message || 'Login failed');
+} finally {
+  setLoading(false);
+}
   };
 
   return (

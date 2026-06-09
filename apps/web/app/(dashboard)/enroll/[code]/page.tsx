@@ -5,22 +5,73 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import SurfacePanel from '@/components/dashboard/SurfacePanel';
+
+type EnrollStatus = 'loading' | 'success' | 'error' | 'not_student';
+
+function getStatusContent(
+  status: EnrollStatus,
+  message: string,
+  courseName: string,
+  role?: string | null
+) {
+  if (status === 'success') {
+    return {
+      icon: 'check',
+      eyebrow: 'Enrollment Complete',
+      title: 'Course joined.',
+      description: `You have successfully joined ${courseName}.`,
+      tone: 'success' as const,
+    };
+  }
+
+  if (status === 'not_student') {
+    return {
+      icon: 'block',
+      eyebrow: 'Access Denied',
+      title: 'Student access only.',
+      description: `Only students can enroll in courses. You are currently signed in as a ${
+        role ?? 'member'
+      }.`,
+      tone: 'danger' as const,
+    };
+  }
+
+  if (status === 'error') {
+    return {
+      icon: 'close',
+      eyebrow: 'Enrollment Failed',
+      title: 'Could not join course.',
+      description: message || 'The enrollment request could not be completed.',
+      tone: 'danger' as const,
+    };
+  }
+
+  return {
+    icon: 'progress_activity',
+    eyebrow: 'Enrollment Gateway',
+    title: 'Joining course.',
+    description: 'Lectra is validating the invitation code.',
+    tone: 'neutral' as const,
+  };
+}
 
 export default function EnrollCodePage() {
   const { code } = useParams<{ code: string }>();
   const { user, loading: authLoading } = useAuth();
-  const [status, setStatus] = useState<
-    'loading' | 'success' | 'error' | 'not_student'
-  >('loading');
+  const [status, setStatus] = useState<EnrollStatus>('loading');
   const [message, setMessage] = useState('');
   const [courseName, setCourseName] = useState('');
   const router = useRouter();
+
+  const normalizedCode = code?.toUpperCase();
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!user) {
-      router.push(`/login?redirect=/enroll/${code}`);
+      sessionStorage.setItem('post_login_redirect', `/enroll/${code}`);
+      router.push('/login');
       return;
     }
 
@@ -31,10 +82,16 @@ export default function EnrollCodePage() {
 
     const enroll = async () => {
       try {
-        const res = await api.post('/enroll', { code: code.toUpperCase() });
+        const res = await api.post('/enroll', {
+          code: normalizedCode,
+        });
+
         setCourseName(res.data.course.name);
         setStatus('success');
-        setTimeout(() => router.push('/courses'), 2000);
+
+        setTimeout(() => {
+          router.push('/courses');
+        }, 1800);
       } catch (err: any) {
         setMessage(err.response?.data?.message || 'Failed to enroll.');
         setStatus('error');
@@ -42,151 +99,164 @@ export default function EnrollCodePage() {
     };
 
     enroll();
-  }, [user, authLoading, code, router]);
+  }, [user, authLoading, code, normalizedCode, router]);
 
-  const normalizedCode = code?.toUpperCase();
+  const content = getStatusContent(
+    status,
+    message,
+    courseName,
+    user?.role
+  );
 
   if (status === 'loading') {
     return (
-      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
-        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#f3f3f3]">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#d6d4d3] border-t-black" />
-            </div>
-
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
-              Enrollment Gateway
-            </p>
-
-            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
-              Joining course...
-            </h1>
-
-            <p className="mx-auto max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
-              Lectra is validating code{' '}
-              <span className="font-mono font-black tracking-widest text-black">
-                {normalizedCode}
-              </span>{' '}
-              and attaching the course to your workspace.
-            </p>
+      <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+        <SurfacePanel tone="lowest" className="w-full max-w-xl text-center">
+          <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center bg-[#eeeeee]">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-black/20 border-t-black" />
           </div>
-        </div>
-      </main>
-    );
-  }
 
-  if (status === 'not_student') {
-    return (
-      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
-        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffdad6] text-[#410002]">
-              <span className="material-symbols-outlined text-3xl">
-                block
-              </span>
-            </div>
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+            Enrollment Gateway
+          </p>
 
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#ba1a1a]">
-              Access Denied
-            </p>
+          <h1 className="text-4xl font-black leading-[0.95] tracking-[-0.055em] text-black md:text-5xl">
+            Joining course.
+          </h1>
 
-            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
-              Student access only.
-            </h1>
-
-            <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
-              Only students can enroll in courses. You are currently signed in
-              as a{' '}
-              <span className="font-bold text-black capitalize">
-                {user?.role}
-              </span>
-              .
-            </p>
-
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 bg-black px-5 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#3b3b3b]"
-            >
-              Go to Dashboard
-              <span>→</span>
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (status === 'success') {
-    return (
-      <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
-        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#e2e2e2] text-black">
-              <span className="material-symbols-outlined text-3xl">
-                check
-              </span>
-            </div>
-
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#777777]">
-              Enrollment Complete
-            </p>
-
-            <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
-              Course joined.
-            </h1>
-
-            <p className="mx-auto mb-4 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
-              You have successfully joined{' '}
-              <span className="font-bold text-black">{courseName}</span>.
-            </p>
-
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#acabab]">
-              Redirecting to courses...
-            </p>
-          </div>
-        </div>
-      </main>
+          <p className="mx-auto mt-5 max-w-md text-sm font-medium leading-7 text-[#5e5e5e]">
+            Lectra is validating code{' '}
+            <span className="font-mono font-black tracking-widest text-black">
+              {normalizedCode}
+            </span>{' '}
+            and attaching the course to your workspace.
+          </p>
+        </SurfacePanel>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-dvh bg-[#f9f9f9] px-6 py-8 text-[#1a1c1c]">
-      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-xl items-center justify-center">
-        <div className="w-full rounded-xl bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffdad6] text-[#410002]">
-            <span className="material-symbols-outlined text-3xl">close</span>
-          </div>
+    <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+      <div className="grid w-full max-w-5xl gap-4 lg:grid-cols-12">
+        <SurfacePanel
+          tone={content.tone === 'danger' ? 'inverse' : 'low'}
+          className="lg:col-span-5"
+        >
+          <div className="flex min-h-[360px] flex-col justify-between">
+            <div>
+              <div
+                className={`mb-8 flex h-16 w-16 items-center justify-center ${
+                  content.tone === 'danger'
+                    ? 'bg-white/10 text-white'
+                    : 'bg-white text-black'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[34px]">
+                  {content.icon}
+                </span>
+              </div>
 
-          <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em] text-[#ba1a1a]">
-            Enrollment Failed
-          </p>
+              <p
+                className={`mb-4 text-[10px] font-bold uppercase tracking-[0.34em] ${
+                  content.tone === 'danger'
+                    ? 'text-white/45'
+                    : 'text-[#777777]'
+                }`}
+              >
+                {content.eyebrow}
+              </p>
 
-          <h1 className="mb-3 text-3xl font-black tracking-tight text-black">
-            Could not join course.
-          </h1>
+              <h1
+                className={`text-4xl font-black leading-[0.95] tracking-[-0.055em] md:text-5xl ${
+                  content.tone === 'danger' ? 'text-white' : 'text-black'
+                }`}
+              >
+                {content.title}
+              </h1>
+            </div>
 
-          <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-[#5f5e5e]">
-            {message}
-          </p>
-
-          <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <Link
-              href="/enroll"
-              className="inline-flex items-center justify-center bg-black px-5 py-3 text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-[#3b3b3b]"
+            <p
+              className={`mt-10 text-sm font-medium leading-7 ${
+                content.tone === 'danger' ? 'text-white/60' : 'text-[#5e5e5e]'
+              }`}
             >
-              Try Again
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center justify-center bg-[#f3f3f3] px-5 py-3 text-xs font-bold uppercase tracking-widest text-[#474747] transition-colors hover:bg-[#e2e2e2] hover:text-black"
-            >
-              Dashboard
-            </Link>
+              Course enrollment connects your account to the correct learning
+              workspace.
+            </p>
           </div>
-        </div>
+        </SurfacePanel>
+
+        <SurfacePanel tone="lowest" className="lg:col-span-7">
+          <div className="flex min-h-[360px] flex-col justify-between">
+            <div>
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+                Enrollment Result
+              </p>
+
+              <h2 className="max-w-xl text-3xl font-black tracking-[-0.045em] text-black">
+                {content.description}
+              </h2>
+
+              <div className="mt-8 space-y-2">
+                <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                    Code
+                  </span>
+                  <span className="font-mono text-sm font-black text-black">
+                    {normalizedCode}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                    Status
+                  </span>
+                  <span className="text-sm font-black capitalize text-black">
+                    {status.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {user && (
+                  <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                      Account
+                    </span>
+                    <span className="max-w-[12rem] truncate text-sm font-black text-black">
+                      {user.name}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              {status === 'success' ? (
+                <Link
+                  href="/courses"
+                  className="inline-flex justify-center bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] px-5 py-3 text-xs font-black uppercase tracking-widest text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,_#1a1c1c,_#5e5e5e)] active:translate-y-0"
+                >
+                  Open Courses
+                </Link>
+              ) : (
+                <Link
+                  href="/enroll"
+                  className="inline-flex justify-center bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] px-5 py-3 text-xs font-black uppercase tracking-widest text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,_#1a1c1c,_#5e5e5e)] active:translate-y-0"
+                >
+                  Try Again
+                </Link>
+              )}
+
+              <Link
+                href="/dashboard"
+                className="inline-flex justify-center bg-[#eeeeee] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#e2e2e2] active:translate-y-0"
+              >
+                Dashboard
+              </Link>
+            </div>
+          </div>
+        </SurfacePanel>
       </div>
-    </main>
+    </div>
   );
 }

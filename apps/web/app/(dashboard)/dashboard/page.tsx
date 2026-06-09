@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import PageHeader from '@/components/dashboard/PageHeader';
 import SurfacePanel from '@/components/dashboard/SurfacePanel';
@@ -22,9 +24,30 @@ function getGreeting() {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
 
-  if (!user) return null;
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!user) {
+      router.replace('/login');
+    }
+  }, [authLoading, user, router]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <p className="text-sm font-medium text-[#777777]">
+          Loading workspace...
+        </p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const firstName = user.name?.split(' ')[0] ?? 'there';
   const isLecturer = user.role === 'lecturer';
