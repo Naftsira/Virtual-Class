@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import SurfacePanel from '@/components/dashboard/SurfacePanel';
 
 type GateStatus =
   | 'checking'
@@ -15,6 +16,50 @@ type GateStatus =
   | 'banned';
 
 type GateType = 'course' | 'session';
+
+function getStatusContent(status: GateStatus, message: string) {
+  if (status === 'unauthorized') {
+    return {
+      icon: 'lock',
+      eyebrow: 'Access Denied',
+      title: 'Access cannot be granted.',
+      description:
+        message || 'You do not have permission to open this workspace.',
+      tone: 'danger' as const,
+    };
+  }
+
+  if (status === 'not_enrolled') {
+    return {
+      icon: 'school',
+      eyebrow: 'Enrollment Required',
+      title: 'You are not enrolled.',
+      description:
+        message || 'This course is not attached to your current account.',
+      tone: 'neutral' as const,
+    };
+  }
+
+  if (status === 'banned') {
+    return {
+      icon: 'block',
+      eyebrow: 'Session Restricted',
+      title: 'You cannot rejoin this session.',
+      description:
+        message || 'Your access to this live session has been restricted.',
+      tone: 'danger' as const,
+    };
+  }
+
+  return {
+    icon: 'error',
+    eyebrow: 'Resource Unavailable',
+    title: 'Workspace not found.',
+    description:
+      message || 'The requested course or session could not be verified.',
+    tone: 'neutral' as const,
+  };
+}
 
 export default function GatePage() {
   const { user, loading: authLoading } = useAuth();
@@ -75,9 +120,7 @@ export default function GatePage() {
       if (currentUser.role === 'student') {
         const coursesRes = await api.get('/courses');
 
-        const enrolled = coursesRes.data.find(
-          (c: any) => c.id === course.id
-        );
+        const enrolled = coursesRes.data.find((c: any) => c.id === course.id);
 
         if (!enrolled) {
           setMessage('You are not enrolled in this course.');
@@ -183,48 +226,149 @@ export default function GatePage() {
 
   if (status === 'checking' || status === 'allowed') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">
-            {status === 'allowed' ? 'Redirecting...' : 'Checking access...'}
+      <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+        <SurfacePanel tone="lowest" className="w-full max-w-xl text-center">
+          <div className="mx-auto mb-8 flex h-16 w-16 items-center justify-center bg-[#eeeeee]">
+            {status === 'allowed' ? (
+              <span className="material-symbols-outlined text-[32px] text-black">
+                verified_user
+              </span>
+            ) : (
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+            )}
+          </div>
+
+          <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+            {status === 'allowed' ? 'Access Granted' : 'Access Checkpoint'}
           </p>
-        </div>
+
+          <h1 className="text-4xl font-black leading-[0.95] tracking-[-0.055em] text-black md:text-5xl">
+            {status === 'allowed'
+              ? 'Opening workspace.'
+              : 'Verifying workspace access.'}
+          </h1>
+
+          <p className="mx-auto mt-5 max-w-md text-sm font-medium leading-7 text-[#5e5e5e]">
+            {status === 'allowed'
+              ? 'Your permission has been confirmed. Redirecting to the requested workspace.'
+              : 'Lectra is checking course membership, session ownership, and access restrictions.'}
+          </p>
+        </SurfacePanel>
       </div>
     );
   }
 
+  const content = getStatusContent(status, message);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl border p-8 max-w-sm w-full text-center">
-        <div className="text-5xl mb-4">
-          {status === 'unauthorized'
-            ? '🚫'
-            : status === 'not_enrolled'
-            ? '📋'
-            : status === 'banned'
-            ? '🔨'
-            : '❓'}
-        </div>
-
-        <h1 className="text-xl font-bold mb-2">
-          {status === 'unauthorized'
-            ? 'Access Denied'
-            : status === 'not_enrolled'
-            ? 'Not Enrolled'
-            : status === 'banned'
-            ? 'You are Banned'
-            : 'Not Found'}
-        </h1>
-
-        <p className="text-gray-500 text-sm mb-6">{message}</p>
-
-        <Link
-          href="/dashboard"
-          className="bg-black text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition inline-block"
+    <div className="flex min-h-[calc(100dvh-8rem)] items-center justify-center">
+      <div className="grid w-full max-w-5xl gap-4 lg:grid-cols-12">
+        <SurfacePanel
+          tone={content.tone === 'danger' ? 'inverse' : 'low'}
+          className="lg:col-span-5"
         >
-          Back to Dashboard
-        </Link>
+          <div className="flex min-h-[360px] flex-col justify-between">
+            <div>
+              <div
+                className={`mb-8 flex h-16 w-16 items-center justify-center ${
+                  content.tone === 'danger'
+                    ? 'bg-white/10 text-white'
+                    : 'bg-white text-black'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[34px]">
+                  {content.icon}
+                </span>
+              </div>
+
+              <p
+                className={`mb-4 text-[10px] font-bold uppercase tracking-[0.34em] ${
+                  content.tone === 'danger'
+                    ? 'text-white/45'
+                    : 'text-[#777777]'
+                }`}
+              >
+                {content.eyebrow}
+              </p>
+
+              <h1
+                className={`text-4xl font-black leading-[0.95] tracking-[-0.055em] md:text-5xl ${
+                  content.tone === 'danger' ? 'text-white' : 'text-black'
+                }`}
+              >
+                {content.title}
+              </h1>
+            </div>
+
+            <p
+              className={`mt-10 text-sm font-medium leading-7 ${
+                content.tone === 'danger' ? 'text-white/60' : 'text-[#5e5e5e]'
+              }`}
+            >
+              The access gate prevents unauthorized entry into course and
+              session workspaces.
+            </p>
+          </div>
+        </SurfacePanel>
+
+        <SurfacePanel tone="lowest" className="lg:col-span-7">
+          <div className="flex min-h-[360px] flex-col justify-between">
+            <div>
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-[#777777]">
+                Verification Result
+              </p>
+
+              <h2 className="max-w-xl text-3xl font-black tracking-[-0.045em] text-black">
+                {content.description}
+              </h2>
+
+              <div className="mt-8 space-y-2">
+                <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                    Status
+                  </span>
+                  <span className="text-sm font-black capitalize text-black">
+                    {status.replace('_', ' ')}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                    Account
+                  </span>
+                  <span className="max-w-[12rem] truncate text-sm font-black text-black">
+                    {user?.name ?? 'Lectra User'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between bg-[#f3f3f3] px-4 py-3">
+                  <span className="text-xs font-bold uppercase tracking-widest text-[#777777]">
+                    Role
+                  </span>
+                  <span className="text-sm font-black capitalize text-black">
+                    {user?.role ?? 'member'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/dashboard"
+                className="inline-flex justify-center bg-[linear-gradient(135deg,_#000000,_#3b3b3b)] px-5 py-3 text-xs font-black uppercase tracking-widest text-white transition hover:opacity-90"
+              >
+                Back to Dashboard
+              </Link>
+
+              <Link
+                href="/courses"
+                className="inline-flex justify-center bg-[#eeeeee] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition hover:bg-[#e2e2e2]"
+              >
+                Open Courses
+              </Link>
+            </div>
+          </div>
+        </SurfacePanel>
       </div>
     </div>
   );
