@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/store/auth';
 import { useAssignments } from '@/lib/hooks/useAssignments';
+import ScheduleEditor from '@/components/ScheduleEditor';
 import api from '@/lib/axios';
 import Link from 'next/link';
 
@@ -29,7 +30,7 @@ export default function CourseDetailPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [gateChecked, setGateChecked] = useState(false);
-  const [activeTab, setActiveTab] = useState<'sessions' | 'assignments'>('sessions');
+  const [activeTab, setActiveTab] = useState<'sessions' | 'assignments' | 'schedule'>('sessions');
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [showAssignmentForm, setShowAssignmentForm] = useState(false);
   const [sessionForm, setSessionForm] = useState({ title: '', description: '', scheduled_at: '' });
@@ -119,7 +120,10 @@ useEffect(() => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await api.post(`/courses/${id}/sessions`, sessionForm);
+      const res = await api.post(`/courses/${id}/sessions`, {
+        ...sessionForm,
+        scheduled_at: sessionForm.scheduled_at ? new Date(sessionForm.scheduled_at).toISOString() : '',
+      });
       setSessions((prev) => [...prev, res.data]);
       setSessionForm({ title: '', description: '', scheduled_at: '' });
       setShowSessionForm(false);
@@ -199,7 +203,7 @@ useEffect(() => {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-          {(['sessions', 'assignments'] as const).map((tab) => (
+          {(['sessions', 'assignments', 'schedule'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -280,7 +284,7 @@ useEffect(() => {
                         <p className="text-sm text-gray-500 mt-1">{session.description}</p>
                       )}
                       <p className="text-xs text-gray-400 mt-2">
-                        {new Date(session.scheduled_at).toLocaleString()}
+                        {new Date(session.scheduled_at).toLocaleString('en-US', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                       </p>
                     </Link>
                     <div className="flex items-center gap-3 ml-4">
@@ -394,6 +398,9 @@ useEffect(() => {
             )}
           </>
         )}
+        {activeTab === 'schedule' && (
+  <ScheduleEditor courseId={id} isLecturer={user?.role === 'lecturer'} />
+)}
       </main>
     </div>
   );

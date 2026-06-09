@@ -27,11 +27,13 @@ export default function DashboardPage() {
     { label: 'Courses', href: '/courses', desc: 'Manage your courses' },
     { label: 'Sessions', href: '/courses', desc: 'View active sessions' },
     { label: 'Assignments', href: '/courses', desc: 'Create assignments' },
+    { label: 'Schedule', href: '/schedule', desc: 'View weekly schedule' },
   ];
 
   const studentCards = [
     { label: 'My Courses', href: '/courses', desc: 'View enrolled courses' },
     { label: 'Assignments', href: '/courses', desc: 'Submit assignments' },
+    { label: 'Schedule', href: '/schedule', desc: 'View weekly schedule' },
     { label: 'Join Course', href: '/enroll', desc: 'Enroll with course code' },
   ];
 
@@ -45,7 +47,16 @@ export default function DashboardPage() {
           <span className="text-xs text-gray-400 ml-2">Think, Draw, Learn.</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600">{user.name}</span>
+          <Link href="/profile" className="flex items-center gap-2 hover:opacity-80 transition">
+            {user.avatar ? (
+              <img src={user.avatar} alt="avatar" className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center">
+                {user.name?.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <span className="text-sm text-gray-600">{user.name}</span>
+          </Link>
           <span className="text-xs bg-black text-white px-2 py-1 rounded-full capitalize">
             {user.role}
           </span>

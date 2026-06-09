@@ -28,6 +28,7 @@ export const config = {
     '/courses/:path*',
     '/session/:path*',
     '/assignments/:path*',
+    '/schedule/:path*',
     '/enroll/:path*',
     '/login',
     '/register',

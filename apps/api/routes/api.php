@@ -29,7 +29,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('courses.assignments', AssignmentController::class);
 
-    Route::get('assignments/{id}', function($id) {
+    Route::post('profile/update', [App\Http\Controllers\ProfileController::class, 'update']);
+
+Route::get('assignments/{id}', function($id) {
         return response()->json(\App\Models\Assignment::findOrFail($id));
     });
 
@@ -51,4 +53,10 @@ Route::middleware('auth:sanctum')->get('sessions/{id}/ban-status', function($id,
         'studentId' => $request->user()->id,
     ]);
     return response()->json($response->json());
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('schedule/weekly', [App\Http\Controllers\ScheduleController::class, 'weekly']);
+    Route::get('courses/{course}/schedule', [App\Http\Controllers\ScheduleController::class, 'index']);
+    Route::post('courses/{course}/schedule', [App\Http\Controllers\ScheduleController::class, 'sync']);
 });
