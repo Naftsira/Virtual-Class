@@ -61,14 +61,37 @@ export default function SchedulePage() {
   const { user } = useAuth();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const todayIndex = getTodayIndex();
 
   useEffect(() => {
+    let cancelled = false;
+
+    setLoading(true);
+    setError('');
+
     api
       .get('/schedule/weekly')
-      .then((res) => setSchedules(res.data))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (cancelled) return;
+        setSchedules(res.data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+
+        console.error('Failed to load weekly schedule:', err);
+        setError('Weekly schedule could not be loaded.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const byDay = useMemo(
@@ -92,7 +115,7 @@ export default function SchedulePage() {
         action={
           <Link
             href="/courses"
-            className="inline-flex bg-[#e2e2e2] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition hover:bg-[#d6d4d3]"
+            className="inline-flex items-center justify-center bg-[#e2e2e2] px-5 py-3 text-xs font-black uppercase tracking-widest text-black transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#d6d4d3] active:translate-y-0"
           >
             Course Spaces
           </Link>
@@ -108,6 +131,12 @@ export default function SchedulePage() {
                 Loading Schedule
               </p>
             </div>
+          </div>
+        </SurfacePanel>
+      ) : error ? (
+        <SurfacePanel tone="lowest">
+          <div className="bg-[#ffdad6] px-5 py-4 text-sm font-bold text-[#410002]">
+            {error}
           </div>
         </SurfacePanel>
       ) : schedules.length === 0 ? (
@@ -153,7 +182,7 @@ export default function SchedulePage() {
                       <Link
                         key={s.id}
                         href={`/courses/${s.course_id}`}
-                        className="grid gap-3 bg-white/8 px-4 py-4 transition hover:bg-white/12 sm:grid-cols-[1fr_auto] sm:items-center"
+                        className="grid gap-3 bg-white/8 px-4 py-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/12 sm:grid-cols-[1fr_auto] sm:items-center"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-black text-white">
@@ -216,7 +245,6 @@ export default function SchedulePage() {
             </SurfacePanel>
           </div>
 
-          {/* Mobile agenda */}
           <section className="space-y-3 md:hidden">
             {DAYS.map((day, i) => {
               const isToday = i === todayIndex;
@@ -272,7 +300,7 @@ export default function SchedulePage() {
                         <Link
                           key={s.id}
                           href={`/courses/${s.course_id}`}
-                          className={`block px-4 py-4 transition ${
+                          className={`block px-4 py-4 transition-all duration-200 hover:-translate-y-0.5 ${
                             isToday
                               ? 'bg-white/8 hover:bg-white/12'
                               : 'bg-[#f3f3f3] hover:bg-[#eeeeee]'
@@ -313,7 +341,6 @@ export default function SchedulePage() {
             })}
           </section>
 
-          {/* Desktop weekly grid */}
           <section className="hidden grid-cols-7 gap-3 md:grid">
             {DAYS.map((day, i) => {
               const isToday = i === todayIndex;
@@ -350,7 +377,9 @@ export default function SchedulePage() {
                     {items.length === 0 ? (
                       <div
                         className={`px-3 py-6 text-center text-xs font-medium ${
-                          isToday ? 'bg-white/8 text-white/35' : 'bg-[#f3f3f3] text-[#999999]'
+                          isToday
+                            ? 'bg-white/8 text-white/35'
+                            : 'bg-[#f3f3f3] text-[#999999]'
                         }`}
                       >
                         —
@@ -360,7 +389,7 @@ export default function SchedulePage() {
                         <Link
                           key={s.id}
                           href={`/courses/${s.course_id}`}
-                          className={`block px-3 py-3 transition ${
+                          className={`block px-3 py-3 transition-all duration-200 hover:-translate-y-0.5 ${
                             isToday
                               ? 'bg-white/8 hover:bg-white/12'
                               : 'bg-[#f3f3f3] hover:bg-[#eeeeee]'
