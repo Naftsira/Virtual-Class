@@ -89,9 +89,6 @@ export default function EnrollCodePage() {
         setCourseName(res.data.course.name);
         setStatus('success');
 
-        setTimeout(() => {
-          router.push('/courses');
-        }, 1800);
       } catch (err: any) {
         setMessage(err.response?.data?.message || 'Failed to enroll.');
         setStatus('error');
