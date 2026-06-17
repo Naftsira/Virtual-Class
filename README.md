@@ -54,10 +54,11 @@ classroom environment.
 
 -   Laravel (API & business logic)
 -   Express.js (real-time services)
+-   Nginx 1.31.1
 
 ### Databases
 
--   PostgreSQL (structured data)
+-   Supabase PostgreSQL (structured data)
 -   MongoDB Atlas (real-time & flexible data)
 
 ### Communication Layer
@@ -70,8 +71,8 @@ classroom environment.
 ### Hosting
 
 -   Vercel (Frontend deployment)
--   AWS Free Tier (planned, subject to availability)
--   VPS required for persistent WebSocket connections
+-   Microsoft Azure VPS, Ubuntu Server 24.04-LTS
+
 
 ### AI Stack
 
@@ -81,7 +82,7 @@ classroom environment.
 
 ## Scalability
 
--   Designed with cross-platform expansion in mind
+-   Designed with cross-platform
 -   Future support for mobile applications
 
 ## Design Preview (Planned)
@@ -96,7 +97,6 @@ classroom environment.
 ## Limitations
 
 -   Some features are experimental
--   Infrastructure constraints (no dedicated VPS yet)
 
 ## Future Improvements
 
